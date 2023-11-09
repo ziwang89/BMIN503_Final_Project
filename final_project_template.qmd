@@ -1,7 +1,7 @@
 ---
-title: "Your_Title"
+title: "Genetic and Environmental Factors Shaping Height and Weight: A Study of Twins and Adoption"
 subtitle: "BMIN503/EPID600 Final Project"
-author: "First_Name Last_Name"
+author: "ZI WANG"
 format: html
 editor: visual
 number-sections: true
@@ -10,17 +10,34 @@ embed-resources: true
 
 ------------------------------------------------------------------------
 
-Use this template to complete your project throughout the course. Your Final Project presentation will be based on the contents of this document. Replace the title/name above and text below with your own, but keep the headers. Feel free to change the theme and other display settings, although this is not required.
-
 ## Overview {#sec-overview}
 
-Give a brief a description of your project and its goal(s), what data you are using to complete it, and what two faculty/staff in different fields you have spoken to about your project with a brief summary of what you learned from each person. Include a link to your final project GitHub repository.
+Studying both biological and virtual twins can provide comprehensive insights into the influences of genetics and environment. Biological twins help emphasize the impact of genetic factors, whereas virtual twins highlight the role of shared early-life environmental factors. The main objective of this twin study is to distinguish the contribution of nature in influencing height and weight, as opposed to nurture."
 
 ## Introduction {#sec-introduction}
 
-Describe the problem addressed, its significance, and some background to motivate the problem. This should extend what is in the @sec-overview.
+There is no doubt that genetic and environmental factors significantly impact early childhood growth and development. Complex interactions and correlations exist among genetic, prenatal environmental, and postnatal environmental influences, leading to a range of health-related outcomes. However, much debate has concerned the dominant influence of nature or nurture. Twin and adoption studies have been widely employed by researchers to assess differences within study pairs and estimate the contributions of genetic and environmental factors to various traits and behaviors. In this study, we aim to evaluate whether genetics or the shared environment significantly influences the variations in height and weight among pairs of twins, siblings, and adoptees.
 
-Explain why your problem is interdisciplinary, what fields can contribute to its understanding, and incorporate background related to what you learned from meeting with faculty/staff.
+When we dive into the study of height and weight in twins and adoptees, genes certainly lay the groundwork, but where and how a child is raised also play a crucial role of their early growth and development. This complex question requires insights from various fields. 
+In the scientific area, geneticists start searching for the specific genes that affect height and weight the most. Meanwhile, nutrition experts bring in their expertise to exploring how their diets shape these physical characteristics. Epidemiologists shift their concerns to figure out how common certain height and weight traits are and what factors are more likely to contribute to these differences, while biostatisticians step into analyzing datasets and quantifying the relative contributions of genetics and environment to variations in individual characteristics.
+These fields will share their own piece to the puzzle to understanding the interfaces of nature and nurture in children’s early years of growth and development.
+
+
+```{r}
+library(dplyr)
+library(epiDisplay)
+library(tidyverse)
+library(ggplot2)
+
+## read in dataset
+#list.files("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/")
+
+Twin_dat <- read.table("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/Data_Twin_Study.txt", header = T, sep = "")
+
+tab1(Twin_dat$Zyg)
+
+```
+
 
 ## Methods {#sec-methods}
 
