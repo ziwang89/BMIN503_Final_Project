@@ -27,9 +27,9 @@ These fields will share their own piece to the puzzle to understanding the inter
 Describe the data used and general methodological approach used to address the problem described in the @sec-introduction. Subsequently, incorporate full R code necessary to retrieve and clean data, and perform analysis. Be sure to include a description of code so that others (including your future self) can understand what you are doing and why.
 
 Twin studies are useful to disentangle the relative importance of environmental and genetic influences on individual traits and behaviors. Two types of twins can be included in these studies: biological and virtual twins. Biological twins include monozygotic (MZ) twins and dizygotic (DZ) twins. MZ twins are developed from the same zygote and thus have the same genetic components. Dizygotic (DZ) twins are developed from two different zygotes and like any other siblings, share in average 50% of their genetic variants. Virtual twins (VTs) are two adoptees or one natural child plus one adoptee who are of the same age and are raised together since infancy. VT twins do not have much of the genes in common. All MZ, DZ and VT twins share many aspects of their environment. Thus, MZ twins are almost always more similar than DZ twins due to higher genetic similarity coupled with the same amount of environmental similarity, while DZ twins share more similarity than VT twins. By comparing the similarity of MZ, DZ, and VT twins, we can decompose the roles of genetic and environmental factors on traits of interest.
-The goal of this twin study was to understand whether the genetic or environmental factors influence height and weight more. The data “twin.txt” included 1098 individuals from 164 monozygotic (MZ) twin pairs, 156 dizygotic (DZ) twin pairs, 132 virtual twin (VT) pairs.
+The goal of this twin study was to understand whether the genetic or environmental factors influence height and weight more. The data “twin.txt” included 1098 individuals from 168 monozygotic (MZ) twin pairs, 169 dizygotic (DZ) twin pairs, 139 virtual twin (VT) pairs.
 
-### 1. Data Preparation
+### 1. Data Exploration
 #### 1.1 Load the necessary R packages:
 
 ```{r}
@@ -38,6 +38,11 @@ library(epiDisplay)
 library(tidyverse)
 library(ggplot2)
 library(vtable)
+library(mice)
+library(missForest)
+library(grid)
+library(gridExtra)
+library(cowplot)
 
 # Function for corr test & plot
 corrplot2 <- function(data,
@@ -90,7 +95,7 @@ corrplot2 <- function(data,
 ## read in dataset
 #list.files("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/")
 Twin_dat <- read.table("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/Data_Twin_Study.txt", header = T, sep = "")
-View(Twin_dat)
+#View(Twin_dat)
 
 #check the dim of the twin data set
 dim(Twin_dat)
@@ -103,13 +108,13 @@ Twin_dat %>% count(IDNO) %>% filter( n != 2 )
 ```
 
 ### 2. Descriptive Analysis
-#### 2.1 Descriptive statistics:
+#### 2.1 Descriptive statistics of the raw data set:
 ```{r}
 ## to change data type based on given variables 
 names(Twin_dat)
 Twin_dat <- Twin_dat %>% mutate(across(c(2,3,4,10), as.factor))
 
-## to generate a descriptive statistics table of the twins dataset
+## to generate a descriptive statistics table of the raw twins dataset
 sumtable(Twin_dat,
          summ=c('notNA(x)',
                 'mean(x)',
@@ -118,69 +123,251 @@ sumtable(Twin_dat,
                 'propNA(x)'))
 ```
 
-#### 2.2 Data visualization:
+#### 2.2 Descriptive statistics of missing values:
+```{r}
+## to count the number of missingness for each variables contained missingness
+### for main outcomes
+length(Twin_dat$IDNO[Twin_dat$HT1==99.99]) #7
+length(Twin_dat$IDNO[Twin_dat$WT1==999.99]) #29
+length(Twin_dat$IDNO[Twin_dat$HT2==99.99]) #7
+length(Twin_dat$IDNO[Twin_dat$WT2==999.99]) #29
+
+### for main predictors 
+##### **BWOZ** Birth Weight in ounces Missing = 999.00
+length(Twin_dat$IDNO[Twin_dat$BWOZ==999.00]) #413
+##### **BirLenth** Birth Length in inches Missing = 99.90
+length(Twin_dat$IDNO[Twin_dat$BirLenth==99.90]) #494
+length(Twin_dat$IDNO[Twin_dat$Race==0]) #6
+
+
+length(Twin_dat$IDNO[Twin_dat$BirLenth==99.90 & Twin_dat$BWOZ==999.00]) #413
+
+## to generate a sub data set stored information of all subjects with missing both main predictors
+Twin_missBirthInfo <- Twin_dat |> filter( BWOZ == 999.00 &
+                                      BirLenth == 99.90 )
+
+dim(Twin_missBirthInfo)
+#413
+```
+
+#### 2.3 Preliminary Data visualization:
+
 ##### for categorical variables
 
 According to the Data Dictionary,
-2. **BO** (Birth Order): 1=child 1 2=child 2 (done in alphabetical order of first name); however, for VTS, younger child is always child 1
+**Zyg** (Zygosity): 1=MZ 2=DZ 3=VT (2 adoptees) 4=VT (1 adoptee, 1 biological child) 5=Full sibs
 
-3. **Zyg** (Zygosity): 1=MZ 2=DZ 3=VT (2 adoptees) 4=VT (1 adoptee, 1 biological child) 5=Full sibs
+**Sex** 1 = Female, 2 = Male
 
-4. **Sex** 1 = Female, 2 = Male
-
-9. **Race** 1=African-American, 2=American Indian/Alaska Native 3=Asian 4=Native Hawaiian/pacific Islander 5=White 6=Hispanic 7=South American Indian 8 = Mixed 9 = Other 0 = Missing
-
-First of all, let explore the distribution for each Zygosity subgroup
+**Race** 1=African-American, 2=American Indian/Alaska Native 3=Asian 4=Native Hawaiian/pacific Islander 5=White 6=Hispanic 7=South American Indian 8 = Mixed 9 = Other 0 = Missing
 ```{r}
-# Grouped
+## to generate a sub data set filtered by data quality of height and weight at birth
+Twin_subdat <- Twin_dat |> filter(!(IDNO %in% Twin_missBirthInfo$IDNO)) |> group_by(IDNO) |> filter(n()==2)
+
+dim(Twin_subdat)
+length(unique(Twin_subdat$IDNO)) # 341 pairs -- 682 subjects
+
+# to compare the distribution for Zygosity groups. 
+# the frequency table of Zygosity Groups
+### for the full data set
+tab1(Twin_dat$Zyg,
+  main="Distribution of Zygosity Groups in full data set")
+### for the sub data set
+tab1(Twin_subdat$Zyg,
+  main="Distribution of Zygosity Groups in sub data set")
+
+# to compare the distribution of race groups. 
+### for the full data set
+tab1(Twin_dat$Race,
+  main="Distribution of Race Groups in full data set")
+### for the sub data set
+tab1(Twin_subdat$Race,
+  main="Distribution of Race Groups in sub data set")
+```
+
+Accordingly, there are 413 subjects who are missing both birth weight and birth length in the raw data set. That is 37.6% of our study cohort. 
+Considering the missing proportion of predictor variables, our primary endpoint will be the height and weight variation among all biological and virtual twins; whereas, our primary endpoint will be the height and weight variation for biological twins only. Additionally, the data is very skewed based on race categories.  
+
+
+### 3. Primary Analysis 
+#### 3.1 Data Preparation 
+
+There isn't much information we could gather from the height and weight at birth for virtual twins due to high proportions of missing values. Thus, we will exclude the two variables **BWOZ** and **BirLenth** from our primary analysis. We will apply data imputation methods for the rest variables.
+
+Accordingly,
+**Agemon** (Age in Months)
+**Ht1** (Height of child 1 in inches) Missing Values = 99.99
+**Wt1** (Weight of child 1 in pounds Missing Values = 999.99
+**Ht2** (Height of child 2 in inches) Missing Values = 99.99
+**Wt2** (Weight of child2 in pounds Missing Values = 999.99
+**Race** 1 = African-American, 2 = American Indian/Alaska Native, 3 = Asian, 4 = Native, Hawaiian/pacific Islander, 5 = White, 6 = Hispanic, 7 = South American Indian, 8 = Mixed, 9 = Other, 0 = Missing
+
+```{r}
+names(Twin_dat)
+#View(Twin_dat)
+dim(Twin_dat)
+
+## to create new variables for further analysis and missing imputation
+primary_dat <- Twin_dat |> mutate(AgeYEAR = round(AgeMon/12,2),
+                                  LifespanStages = case_when(
+                                    AgeYEAR < 2 ~ "Infancy",
+                                    AgeYEAR >=2 & AgeYEAR < 12 ~ "Childhood",
+                                    AgeYEAR >=12 & AgeYEAR < 18 ~ "Adolescence",
+                                    AgeYEAR >=18  ~ "Adulthood"
+                                  ),
+                                  ## variables created below are for missing imputation
+                               HT1_imp = if_else(HT1 != 99.99,HT1, NA),
+                               WT1_imp = if_else(WT1 != 999.99,WT1,NA),
+                               HT2_imp = if_else(HT2 != 99.99,HT2,NA),
+                               WT2_imp = if_else(WT2 != 999.99,WT2,NA)
+                               )
+
+primary_dat$LifespanStages <- factor(primary_dat$LifespanStages, levels = c("Infancy","Childhood","Adolescence","Adulthood"))
+
+summary(primary_dat)
+
+## to impute missing values 
+primary_dat <- primary_dat |> mutate(
+  HT1_missForest = missForest(primary_dat)$ximp$HT1_imp,
+  WT1_missForest = missForest(primary_dat)$ximp$WT1_imp,
+  HT2_missForest = missForest(primary_dat)$ximp$HT2_imp,
+  WT2_missForest = missForest(primary_dat)$ximp$WT2_imp
+)
+
+####### CHILD 1
+HT1.P <- ggplot(primary_dat, aes(x = HT1_imp)) +
+  geom_histogram(fill = "#ad1538", color = "#000000", position = "identity") +
+  labs(x ="Height (inches)") + 
+  ggtitle("Original Distribution of Height \nChild 1") +
+  theme_classic()
+
+HT1imp.P <- ggplot(primary_dat, aes(x = HT1_missForest)) +
+  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
+  labs(x ="Height (inches)") + 
+  ggtitle("MissForest-imputed Distribution of Height \nChild 1") +
+  theme_classic()
+
+WT1.P <- ggplot(primary_dat, aes(x = WT1_imp)) +
+  geom_histogram(fill = "#ad1538", color = "#000000", position = "identity") +
+  labs(x ="Weight (pounds)") +
+  ggtitle("Original Distribution of Weight \nChild 1") +
+  theme_classic()
+
+WT1imp.P <- ggplot(primary_dat, aes(x = WT1_missForest)) +
+  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
+  labs(x ="Weight (pounds)") +
+  ggtitle("MissForest-imputed Distribution of Weight \nChild 1") +
+  theme_classic()
+
+####### CHILD 2
+
+HT2.P <- ggplot(primary_dat, aes(x = HT2_imp)) +
+  geom_histogram(fill = "#ad2538", color = "#000000", position = "identity") +
+  labs(x ="Height (inches)") + 
+  ggtitle("Original Distribution of Height \nChild 2") +
+  theme_classic()
+
+HT2imp.P <- ggplot(primary_dat, aes(x = HT2_missForest)) +
+  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
+  labs(x ="Height (inches)") + 
+  ggtitle("MissForest-imputed Distribution of Height \nChild 2") +
+  theme_classic()
+
+WT2.P <- ggplot(primary_dat, aes(x = WT2_imp)) +
+  geom_histogram(fill = "#ad2538", color = "#000000", position = "identity") +
+  labs(x ="Weight (pounds)") +
+  ggtitle("Original Distribution of Weight \nChild 2") +
+  theme_classic()
+
+WT2imp.P <- ggplot(primary_dat, aes(x = WT2_missForest)) +
+  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
+  labs(x ="Weight (pounds)") +
+  ggtitle("MissForest-imputed Distribution of Weight \nChild 2") +
+  theme_classic()
+
+
+plot_grid(HT1.P, HT1imp.P, 
+          WT1.P, WT1imp.P,
+          HT2.P, HT2imp.P,
+          WT2.P, WT2imp.P,
+          nrow = 4, ncol = 2)
+
+# to generate a descriptive statistics table of the raw twins dataset
+sumtable(primary_dat,
+         summ=c('notNA(x)',
+                'mean(x)',
+                'median(x)',
+                'pctile(x)[25]', 'pctile(x)[75]',
+                'propNA(x)'))
+```
+
+#### 3.2 Primary Data Visualization  
+
+First of all, let explore the distribution for each Zygosity subgroup by gender. 
+```{r}
+# proportions in Zygosity groups by Gender 
 ggplot(Twin_dat, aes(fill=Sex, y=Sex, x=Zyg)) + 
     #geom_bar(position="stack", stat="identity") +
     geom_bar(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..]), position="dodge" ) +
     geom_text(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..], label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..]) ),
             stat="count", position=position_dodge(0.9), vjust=-0.5)+
     ylab('Percent of Gender Group, %') +
-    scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  scale_x_discrete(name="Zygosity",
+                   labels=c("1" = "1\nMonozygotic", "2" = "2\nDizygotic", "3" = "3\nTwo Adoptees",
+                            "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
+  scale_y_continuous(labels = scales::percent) +
     theme_classic()
+```
 
-
-
+```{r}
+# proportions in Zygosity groups by Gender 
+ggplot(Twin_dat, aes(fill=Sex, y=Sex, x=Zyg)) + 
+    #geom_bar(position="stack", stat="identity") +
+    geom_bar(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..]), position="dodge" ) +
+    geom_text(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..], label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..]) ),
+            stat="count", position=position_dodge(0.9), vjust=-0.5)+
+    ylab('Percent of Gender Group, %') +
+  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  scale_x_discrete(name="Zygosity",
+                   labels=c("1" = "1\nMonozygotic", "2" = "2\nDizygotic", "3" = "3\nTwo Adoptees",
+                            "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
+  scale_y_continuous(labels = scales::percent) +
+    theme_classic()
 ```
 
 
-5. **Agemon** (Age in Months)
-
-6. **Ht1** (Height of child 1 in inches) Missing Values = 99.99
-
-7. **Wt1** (Weight of child 1 in pounds Missing Values = 999.99
-
-8. **Ht2** (Height of child 2 in inches) Missing Values = 99.99
-
-9. **Wt2** (Weight of child2 in pounds Missing Values = 999.99
-
-
 ```{r}
+### to convert age variable into year and create a new binary variable indicating adulthood
+Twin_dat <- Twin_dat |> mutate(AgeYEAR = round(AgeMon/12,2),
+                               ifadult = if_else(AgeYEAR >=18,1,0))
+summary(Twin_dat$AgeYEAR)
+
+table(Twin_dat$ifadult)
+
+
 # Normal curve
-fun <- dnorm(dat, mean = mean(dat), sd = sd(dat))
+fun <- dnorm(Twin_dat$AgeYEAR, mean = mean(Twin_dat$AgeYEAR), sd = sd(Twin_dat$AgeYEAR))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(dat, probability = TRUE, xlab = expression("X"[1]*""), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(Twin_dat$AgeYEAR, probability = TRUE, xlab = expression("Age (year)"), col = "grey", #ylim = c(0, max(fun)+0.01),
      axes = FALSE, 
-     main =  expression("Contaminated Normal Distribution of X"[1]*"(n=24)"))
+     main =  expression("Distribution of Age"))
 # Axis
 axis(1)
 # Density
-lines(density(dat), col = "red", lwd = 2)
+lines(density(Twin_dat$AgeYEAR), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(dat, horizontal = TRUE, 
+boxplot(Twin_dat$AgeYEAR, horizontal = TRUE, 
         axes = FALSE, 
-        ylim = c(-20,65),
+        #ylim = c(-20,65),
         #boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(dat,              # Data
+stripchart(Twin_dat$AgeYEAR,              # Data
            method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
@@ -189,6 +376,145 @@ stripchart(dat,              # Data
 
 
 ```
+
+##### for potential outcomes
+6. **Ht1** (Height of child 1 in inches) Missing Values = 99.99
+
+7. **Wt1** (Weight of child 1 in pounds) Missing Values = 999.99
+
+8. **Ht2** (Height of child 2 in inches) Missing Values = 99.99
+
+9. **Wt2** (Weight of child2 in pounds) Missing Values = 999.99
+
+
+```{r}
+####################################
+### for Height of child 1 in inches
+####################################
+# Normal curve
+fun <- dnorm(Twin_dat$HT1, mean = mean(Twin_dat$HT1), sd = sd(Twin_dat$HT1))
+max(fun)
+
+par(mfrow = c(1, 1))
+# Histogram
+hist(Twin_dat$HT1, probability = TRUE, xlab = expression("Height"[1]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+     axes = FALSE, 
+     main =  expression("Distribution of Height of child 1"))
+# Axis
+axis(1)
+# Density
+lines(density(Twin_dat$HT1), col = "red", lwd = 2)
+# Add boxplot
+par(new =TRUE)
+boxplot(Twin_dat$HT1, horizontal = TRUE, 
+        axes = FALSE, 
+        #ylim = c(-20,65),
+        boxlwd = 1, outwex = 0.5, boxwex = 0.2,
+        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
+)
+stripchart(Twin_dat$HT1,              # Data
+           #method = "jitter", # Random noise
+           pch = 18,          # Pch symbols
+           col = 4,           # Color of the symbol
+           # vertical = TRUE,   # Vertical mode
+           add = TRUE) 
+
+####################################
+### for Weight of child 1 in pounds
+####################################
+# Normal curve
+fun <- dnorm(Twin_dat$WT1, mean = mean(Twin_dat$WT1), sd = sd(Twin_dat$WT1))
+max(fun)
+
+par(mfrow = c(1, 1))
+# Histogram
+hist(Twin_dat$WT1, probability = TRUE, xlab = expression("Weight"[1]*"(pounds)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+     axes = FALSE, 
+     main =  expression("Distribution of Weight of child 1"))
+# Axis
+axis(1)
+# Density
+lines(density(Twin_dat$WT1), col = "red", lwd = 2)
+# Add boxplot
+par(new =TRUE)
+boxplot(Twin_dat$WT1, horizontal = TRUE, 
+        axes = FALSE, 
+        #ylim = c(-20,65),
+        boxlwd = 1, outwex = 0.5, boxwex = 0.2,
+        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
+)
+stripchart(Twin_dat$WT1,              # Data
+           #method = "jitter", # Random noise
+           pch = 18,          # Pch symbols
+           col = 4,           # Color of the symbol
+           # vertical = TRUE,   # Vertical mode
+           add = TRUE) 
+
+####################################
+### for Height of child 2 in inches
+####################################
+# Normal curve
+fun <- dnorm(Twin_dat$HT2, mean = mean(Twin_dat$HT2), sd = sd(Twin_dat$HT2))
+max(fun)
+
+par(mfrow = c(1, 1))
+# Histogram
+hist(Twin_dat$HT2, probability = TRUE, xlab = expression("Height"[2]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+     axes = FALSE, 
+     main =  expression("Distribution of Height of child 2"))
+# Axis
+axis(1)
+# Density
+lines(density(Twin_dat$HT2), col = "red", lwd = 2)
+# Add boxplot
+par(new =TRUE)
+boxplot(Twin_dat$HT2, horizontal = TRUE, 
+        axes = FALSE, 
+        #ylim = c(-20,65),
+        boxlwd = 1, outwex = 0.5, boxwex = 0.2,
+        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
+)
+stripchart(Twin_dat$HT2,              # Data
+           #method = "jitter", # Random noise
+           pch = 18,          # Pch symbols
+           col = 4,           # Color of the symbol
+           # vertical = TRUE,   # Vertical mode
+           add = TRUE) 
+
+####################################
+### for Weight of child 1 in pounds
+####################################
+# Normal curve
+fun <- dnorm(Twin_dat$WT2, mean = mean(Twin_dat$WT2), sd = sd(Twin_dat$WT2))
+max(fun)
+
+par(mfrow = c(1, 1))
+# Histogram
+hist(Twin_dat$WT2, probability = TRUE, xlab = expression("Weight"[2]*"(pounds)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+     axes = FALSE, 
+     main =  expression("Distribution of Weight of child 2"))
+# Axis
+axis(1)
+# Density
+lines(density(Twin_dat$WT2), col = "red", lwd = 2)
+# Add boxplot
+par(new =TRUE)
+boxplot(Twin_dat$WT2, horizontal = TRUE, 
+        axes = FALSE, 
+        #ylim = c(-20,65),
+        boxlwd = 1, outwex = 0.5, boxwex = 0.2,
+        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
+)
+stripchart(Twin_dat$WT2,              # Data
+           #method = "jitter", # Random noise
+           pch = 18,          # Pch symbols
+           col = 4,           # Color of the symbol
+           # vertical = TRUE,   # Vertical mode
+           add = TRUE) 
+
+```
+#### 3. Correlation Analysis
+##### 3.1 Pearson correlation matrix:
 
 
 ## Results {#sec-results}
