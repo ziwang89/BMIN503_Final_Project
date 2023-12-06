@@ -43,6 +43,8 @@ library(missForest)
 library(grid)
 library(gridExtra)
 library(cowplot)
+library(gtsummary)
+library(nlme)
 
 # Function for corr test & plot
 corrplot2 <- function(data,
@@ -95,7 +97,6 @@ corrplot2 <- function(data,
 ## read in dataset
 #list.files("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/")
 Twin_dat <- read.table("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/Data_Twin_Study.txt", header = T, sep = "")
-#View(Twin_dat)
 
 #check the dim of the twin data set
 dim(Twin_dat)
@@ -105,45 +106,114 @@ length(unique(Twin_dat$IDNO))
 
 #check whether there exists pairs of triple twins babies or cases of mislabeling
 Twin_dat %>% count(IDNO) %>% filter( n != 2 )
+
+#generate a table of Birth Order 
+table(Twin_dat$BO)
+#access the row with a wrong Birth Order label
+Twin_dat %>% group_by(IDNO) %>% count(BO) %>% filter( n != 1 )
+(Twin_dat[Twin_dat$IDNO == 467,])
+Twin_dat[917,]
+
+#correct the wrong Birth Order label
+Twin_dat$BO[917] = 1
+#check the correction
+(Twin_dat[Twin_dat$IDNO == 467,])
+
+#pre-view the data set
+head(Twin_dat,10)
 ```
+
+By digging into the data set, we see that there is information overlap between variables. There are two rows of each study pair, and the variable **BO** indicates the Birth Order. However, in the column of the variable **HT1**, it not only lists the height of child 1 as defined but also includes the height of child 2 in the second row of each pair, same as the column of the variable **WT1**. Thus, we can regenerate our outcomes as below.
+
+```{r}
+# check the distribution of the main outcomes
+summary(Twin_dat$HT1[Twin_dat$BO==2])
+length(Twin_dat$HT1[Twin_dat$BO==2])
+summary(Twin_dat$HT2[Twin_dat$BO==1])
+length(Twin_dat$HT2[Twin_dat$BO==1])
+
+# check if two cells of the same pair have a one-to-one relationship
+Twin_dat <- Twin_dat |> group_by(IDNO) |> mutate(check.HT = ifelse( HT1[BO==2] == HT2[BO==1],1,0 ),
+                                                 check.WT = ifelse( WT1[BO==2] == WT2[BO==1],1,0 )) 
+
+
+Twin_dat |> filter(check.HT==0 | check.WT==0)
+
+# combine the information of four potential outcomes to create new accurate outcomes for each pair
+
+Twin_dat <- Twin_dat |> group_by(IDNO) |> mutate(
+  HT = case_when(
+    BO == 1 ~ HT1[BO==1],
+    BO == 2 ~ HT2[BO==1]
+  ),
+   WT = case_when(
+    BO == 1 ~ WT1[BO==1],
+    BO == 2 ~ WT2[BO==1]
+  ),
+)
+
+# check the new outcomes
+head(Twin_dat[,c("IDNO","BO","HT1","HT2","HT",
+                    "WT1","WT2","WT")])
+
+# pull a new sub data set for further analysis
+names(Twin_dat)
+TwinData <- Twin_dat |> dplyr::select(IDNO,BO,Zyg,Sex,Race,
+                                      AgeMon,BWOZ,BirLenth,
+                                      HT,WT)
+
+```
+
 
 ### 2. Descriptive Analysis
 #### 2.1 Descriptive statistics of the raw data set:
 ```{r}
 ## to change data type based on given variables 
-names(Twin_dat)
-Twin_dat <- Twin_dat %>% mutate(across(c(2,3,4,10), as.factor))
+names(TwinData)
 
-## to generate a descriptive statistics table of the raw twins dataset
-sumtable(Twin_dat,
-         summ=c('notNA(x)',
-                'mean(x)',
-                'median(x)',
-                'pctile(x)[25]', 'pctile(x)[75]',
-                'propNA(x)'))
+TwinData$BO <- factor(TwinData$BO,levels = c(1,2))
+TwinData$Zyg <- factor(TwinData$Zyg,levels = c(1,2,3,4,5))
+TwinData$Sex <- factor(TwinData$Sex,levels = c(1,2))
+TwinData$Race <- factor(TwinData$Race,levels = c(1,2,3,4,5,6,7,8,9,0))
+
+# Create two new age related variables using AgeMon: Age by year, Lifespan Stages
+TwinData <- TwinData |> mutate(AgeYEAR = round(AgeMon/12,2),
+                                  LifespanStages = case_when(
+                                    AgeYEAR < 2 ~ "Infancy",
+                                    AgeYEAR >=2 & AgeYEAR < 12 ~ "Childhood",
+                                    AgeYEAR >=12 & AgeYEAR < 18 ~ "Adolescence",
+                                    AgeYEAR >=18  ~ "Adulthood"
+                                  ))
+
+TwinData$LifespanStages <- factor(TwinData$LifespanStages, levels = c("Infancy","Childhood","Adolescence","Adulthood"))
+TwinData$AgeMon <- as.numeric(TwinData$AgeMon )
+
+## to generate a descriptive statistics table of the raw twins dataset by birth order
+TwinData |> tbl_summary(by = BO) |>
+  add_p()
+
 ```
 
 #### 2.2 Descriptive statistics of missing values:
 ```{r}
 ## to count the number of missingness for each variables contained missingness
 ### for main outcomes
-length(Twin_dat$IDNO[Twin_dat$HT1==99.99]) #7
-length(Twin_dat$IDNO[Twin_dat$WT1==999.99]) #29
-length(Twin_dat$IDNO[Twin_dat$HT2==99.99]) #7
-length(Twin_dat$IDNO[Twin_dat$WT2==999.99]) #29
+length(TwinData$IDNO[TwinData$HT==99.99]) #7
+length(TwinData$IDNO[TwinData$WT==999.99]) #29
+
 
 ### for main predictors 
 ##### **BWOZ** Birth Weight in ounces Missing = 999.00
-length(Twin_dat$IDNO[Twin_dat$BWOZ==999.00]) #413
+length(TwinData$IDNO[TwinData$BWOZ==999.00]) #413
 ##### **BirLenth** Birth Length in inches Missing = 99.90
-length(Twin_dat$IDNO[Twin_dat$BirLenth==99.90]) #494
-length(Twin_dat$IDNO[Twin_dat$Race==0]) #6
+length(TwinData$IDNO[TwinData$BirLenth==99.90]) #494
+##### race
+length(TwinData$IDNO[TwinData$Race==0]) #6
 
-
-length(Twin_dat$IDNO[Twin_dat$BirLenth==99.90 & Twin_dat$BWOZ==999.00]) #413
+length(TwinData$IDNO[TwinData$BirLenth==99.90 & TwinData$BWOZ==999.00]) #413
 
 ## to generate a sub data set stored information of all subjects with missing both main predictors
-Twin_missBirthInfo <- Twin_dat |> filter( BWOZ == 999.00 &
+Twin_missBirthInfo <- TwinData |> filter( BWOZ == 999.00 &
                                       BirLenth == 99.90 )
 
 dim(Twin_missBirthInfo)
@@ -162,7 +232,7 @@ According to the Data Dictionary,
 **Race** 1=African-American, 2=American Indian/Alaska Native 3=Asian 4=Native Hawaiian/pacific Islander 5=White 6=Hispanic 7=South American Indian 8 = Mixed 9 = Other 0 = Missing
 ```{r}
 ## to generate a sub data set filtered by data quality of height and weight at birth
-Twin_subdat <- Twin_dat |> filter(!(IDNO %in% Twin_missBirthInfo$IDNO)) |> group_by(IDNO) |> filter(n()==2)
+Twin_subdat <- TwinData |> filter(!(IDNO %in% Twin_missBirthInfo$IDNO)) |> group_by(IDNO) |> filter(n()==2)
 
 dim(Twin_subdat)
 length(unique(Twin_subdat$IDNO)) # 341 pairs -- 682 subjects
@@ -170,7 +240,7 @@ length(unique(Twin_subdat$IDNO)) # 341 pairs -- 682 subjects
 # to compare the distribution for Zygosity groups. 
 # the frequency table of Zygosity Groups
 ### for the full data set
-tab1(Twin_dat$Zyg,
+tab1(TwinData$Zyg,
   main="Distribution of Zygosity Groups in full data set")
 ### for the sub data set
 tab1(Twin_subdat$Zyg,
@@ -178,7 +248,7 @@ tab1(Twin_subdat$Zyg,
 
 # to compare the distribution of race groups. 
 ### for the full data set
-tab1(Twin_dat$Race,
+tab1(TwinData$Race,
   main="Distribution of Race Groups in full data set")
 ### for the sub data set
 tab1(Twin_subdat$Race,
@@ -195,7 +265,6 @@ Considering the missing proportion of predictor variables, our primary endpoint 
 There isn't much information we could gather from the height and weight at birth for virtual twins due to high proportions of missing values. Thus, we will exclude the two variables **BWOZ** and **BirLenth** from our primary analysis. We will apply data imputation methods for the rest variables.
 
 Accordingly,
-**Agemon** (Age in Months)
 **Ht1** (Height of child 1 in inches) Missing Values = 99.99
 **Wt1** (Weight of child 1 in pounds Missing Values = 999.99
 **Ht2** (Height of child 2 in inches) Missing Values = 99.99
@@ -203,110 +272,98 @@ Accordingly,
 **Race** 1 = African-American, 2 = American Indian/Alaska Native, 3 = Asian, 4 = Native, Hawaiian/pacific Islander, 5 = White, 6 = Hispanic, 7 = South American Indian, 8 = Mixed, 9 = Other, 0 = Missing
 
 ```{r}
-names(Twin_dat)
+names(TwinData)
 #View(Twin_dat)
-dim(Twin_dat)
+dim(TwinData)
 
 ## to create new variables for further analysis and missing imputation
-primary_dat <- Twin_dat |> mutate(AgeYEAR = round(AgeMon/12,2),
-                                  LifespanStages = case_when(
-                                    AgeYEAR < 2 ~ "Infancy",
-                                    AgeYEAR >=2 & AgeYEAR < 12 ~ "Childhood",
-                                    AgeYEAR >=12 & AgeYEAR < 18 ~ "Adolescence",
-                                    AgeYEAR >=18  ~ "Adulthood"
-                                  ),
-                                  ## variables created below are for missing imputation
-                               HT1_imp = if_else(HT1 != 99.99,HT1, NA),
-                               WT1_imp = if_else(WT1 != 999.99,WT1,NA),
-                               HT2_imp = if_else(HT2 != 99.99,HT2,NA),
-                               WT2_imp = if_else(WT2 != 999.99,WT2,NA)
-                               )
-
-primary_dat$LifespanStages <- factor(primary_dat$LifespanStages, levels = c("Infancy","Childhood","Adolescence","Adulthood"))
-
+primary_dat <- TwinData |> mutate(## variables created below are for missing imputation
+                               HT_imp = if_else(HT != 99.99,HT, NA_integer_),
+                               WT_imp = if_else(WT != 999.99,WT,NA_integer_)) |> as.data.frame()
+#dim(primary_dat)
 summary(primary_dat)
 
-## to impute missing values 
-primary_dat <- primary_dat |> mutate(
-  HT1_missForest = missForest(primary_dat)$ximp$HT1_imp,
-  WT1_missForest = missForest(primary_dat)$ximp$WT1_imp,
-  HT2_missForest = missForest(primary_dat)$ximp$HT2_imp,
-  WT2_missForest = missForest(primary_dat)$ximp$WT2_imp
+primary_dat$HT <- as.numeric(primary_dat$HT)
+primary_dat$WT <- as.numeric(primary_dat$WT)
+primary_dat$HT_imp <- as.numeric(primary_dat$HT_imp)
+primary_dat$WT_imp <- as.numeric(primary_dat$WT_imp)
+
+
+imput_numeric <- primary_dat %>%
+  select(HT_imp, WT_imp, AgeMon, Zyg, Sex,Race)
+
+## to impute missing values using missForest & laso.norm: Lasso linear regression.
+imput_numeric <- imput_numeric |> ungroup() |> dplyr::mutate(
+  HT_missForest = missForest(imput_numeric)$ximp$HT_imp,
+  WT_missForest = missForest(imput_numeric)$ximp$WT_imp,
+  HT_lasso = complete(mice(imput_numeric, method = "lasso.norm"))$HT_imp,
+  WT_lasso = complete(mice(imput_numeric, method = "lasso.norm"))$WT_imp
 )
 
-####### CHILD 1
-HT1.P <- ggplot(primary_dat, aes(x = HT1_imp)) +
+summary(imput_numeric)
+
+####### Height
+HT.P <- ggplot(imput_numeric, aes(x = HT_imp)) +
   geom_histogram(fill = "#ad1538", color = "#000000", position = "identity") +
   labs(x ="Height (inches)") + 
-  ggtitle("Original Distribution of Height \nChild 1") +
+  ggtitle("Original Distribution of Height") +
   theme_classic()
 
-HT1imp.P <- ggplot(primary_dat, aes(x = HT1_missForest)) +
+HTimp.missForest <- ggplot(imput_numeric, aes(x = HT_missForest)) +
   geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
   labs(x ="Height (inches)") + 
-  ggtitle("MissForest-imputed Distribution of Height \nChild 1") +
+  ggtitle("MissForest-imputed Distribution of Height") +
   theme_classic()
 
-WT1.P <- ggplot(primary_dat, aes(x = WT1_imp)) +
+HTimp.lasso <- ggplot(imput_numeric, aes(x = HT_lasso)) +
+  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
+  labs(x ="Height (inches)") + 
+  ggtitle("Lasso-imputed Distribution of Height") +
+  theme_classic()
+
+####### Weight
+WT.P <- ggplot(imput_numeric, aes(x = WT_imp)) +
   geom_histogram(fill = "#ad1538", color = "#000000", position = "identity") +
   labs(x ="Weight (pounds)") +
-  ggtitle("Original Distribution of Weight \nChild 1") +
+  ggtitle("Original Distribution of Weight") +
   theme_classic()
 
-WT1imp.P <- ggplot(primary_dat, aes(x = WT1_missForest)) +
+WTimp.missForest <- ggplot(imput_numeric, aes(x = WT_missForest)) +
   geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
   labs(x ="Weight (pounds)") +
-  ggtitle("MissForest-imputed Distribution of Weight \nChild 1") +
+  ggtitle("MissForest-imputed Distribution of Weight") +
   theme_classic()
 
-####### CHILD 2
-
-HT2.P <- ggplot(primary_dat, aes(x = HT2_imp)) +
-  geom_histogram(fill = "#ad2538", color = "#000000", position = "identity") +
-  labs(x ="Height (inches)") + 
-  ggtitle("Original Distribution of Height \nChild 2") +
-  theme_classic()
-
-HT2imp.P <- ggplot(primary_dat, aes(x = HT2_missForest)) +
-  geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
-  labs(x ="Height (inches)") + 
-  ggtitle("MissForest-imputed Distribution of Height \nChild 2") +
-  theme_classic()
-
-WT2.P <- ggplot(primary_dat, aes(x = WT2_imp)) +
-  geom_histogram(fill = "#ad2538", color = "#000000", position = "identity") +
-  labs(x ="Weight (pounds)") +
-  ggtitle("Original Distribution of Weight \nChild 2") +
-  theme_classic()
-
-WT2imp.P <- ggplot(primary_dat, aes(x = WT2_missForest)) +
+WTimp.lasso <- ggplot(imput_numeric, aes(x = WT_lasso)) +
   geom_histogram(fill = "#1543ad", color = "#000000", position = "identity") +
   labs(x ="Weight (pounds)") +
-  ggtitle("MissForest-imputed Distribution of Weight \nChild 2") +
+  ggtitle("Lasso-imputed Distribution of Weight") +
   theme_classic()
 
 
-plot_grid(HT1.P, HT1imp.P, 
-          WT1.P, WT1imp.P,
-          HT2.P, HT2imp.P,
-          WT2.P, WT2imp.P,
-          nrow = 4, ncol = 2)
+plot_grid(HT.P, WT.P,
+          HTimp.missForest,WTimp.missForest,
+          HTimp.lasso,WTimp.lasso,
+          nrow = 3, ncol = 2)
 
 # to generate a descriptive statistics table of the raw twins dataset
-sumtable(primary_dat,
-         summ=c('notNA(x)',
-                'mean(x)',
-                'median(x)',
-                'pctile(x)[25]', 'pctile(x)[75]',
-                'propNA(x)'))
+imput_numeric |> dplyr::select(HT_imp,HT_missForest,HT_lasso,
+                             WT_imp,WT_missForest,WT_lasso) |> tbl_summary()
+
+# final primary outcomes
+primary_dat$HT_lasso <- imput_numeric$HT_lasso
+primary_dat$WT_lasso <- imput_numeric$WT_lasso
 ```
 
-#### 3.2 Primary Data Visualization  
+The Miss Forest imputation technique is based on the Random Forest algorithm. As a non-parametric imputation method, it estimates the function in a way that’s closest to the data points without any assumptions about the function form. On the other hand, MICE stands for Multivariate Imputation via Chained Equations, and it’s one of the most common packages for R users. Lasso linear regression method from mice package is applied here.Take a look at the variable distribution changes by summary table and a grid of histograms, we know the imputed variables are in a good shape. The imputed distributions overall look much closer to the original one. The lasso-imputed height and weight distributions look the closest. 
+Next, we will construct the univariate and multivariate analyses.
 
-First of all, let explore the distribution for each Zygosity subgroup by gender. 
+#### 3.2 Primary Data Visualization
+
+First of all, let's visualize the distribution for each Zygosity subgroup by gender. 
 ```{r}
 # proportions in Zygosity groups by Gender 
-ggplot(Twin_dat, aes(fill=Sex, y=Sex, x=Zyg)) + 
+ggplot(primary_dat, aes(fill=Sex, y=Sex, x=Zyg)) + 
     #geom_bar(position="stack", stat="identity") +
     geom_bar(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..]), position="dodge" ) +
     geom_text(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..], label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..]) ),
@@ -318,101 +375,41 @@ ggplot(Twin_dat, aes(fill=Sex, y=Sex, x=Zyg)) +
                             "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
   scale_y_continuous(labels = scales::percent) +
     theme_classic()
-```
-
-```{r}
-# proportions in Zygosity groups by Gender 
-ggplot(Twin_dat, aes(fill=Sex, y=Sex, x=Zyg)) + 
-    #geom_bar(position="stack", stat="identity") +
-    geom_bar(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..]), position="dodge" ) +
-    geom_text(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..], label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..]) ),
-            stat="count", position=position_dodge(0.9), vjust=-0.5)+
-    ylab('Percent of Gender Group, %') +
-  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
-  scale_x_discrete(name="Zygosity",
-                   labels=c("1" = "1\nMonozygotic", "2" = "2\nDizygotic", "3" = "3\nTwo Adoptees",
-                            "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
-  scale_y_continuous(labels = scales::percent) +
-    theme_classic()
-```
-
-
-```{r}
-### to convert age variable into year and create a new binary variable indicating adulthood
-Twin_dat <- Twin_dat |> mutate(AgeYEAR = round(AgeMon/12,2),
-                               ifadult = if_else(AgeYEAR >=18,1,0))
-summary(Twin_dat$AgeYEAR)
-
-table(Twin_dat$ifadult)
-
-
-# Normal curve
-fun <- dnorm(Twin_dat$AgeYEAR, mean = mean(Twin_dat$AgeYEAR), sd = sd(Twin_dat$AgeYEAR))
-max(fun)
-
-par(mfrow = c(1, 1))
-# Histogram
-hist(Twin_dat$AgeYEAR, probability = TRUE, xlab = expression("Age (year)"), col = "grey", #ylim = c(0, max(fun)+0.01),
-     axes = FALSE, 
-     main =  expression("Distribution of Age"))
-# Axis
-axis(1)
-# Density
-lines(density(Twin_dat$AgeYEAR), col = "red", lwd = 2)
-# Add boxplot
-par(new =TRUE)
-boxplot(Twin_dat$AgeYEAR, horizontal = TRUE, 
-        axes = FALSE, 
-        #ylim = c(-20,65),
-        #boxlwd = 1, outwex = 0.5, boxwex = 0.2,
-        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
-)
-stripchart(Twin_dat$AgeYEAR,              # Data
-           method = "jitter", # Random noise
-           pch = 18,          # Pch symbols
-           col = 4,           # Color of the symbol
-           # vertical = TRUE,   # Vertical mode
-           add = TRUE) 
 
 
 ```
 
-##### for potential outcomes
-6. **Ht1** (Height of child 1 in inches) Missing Values = 99.99
 
-7. **Wt1** (Weight of child 1 in pounds) Missing Values = 999.99
-
-8. **Ht2** (Height of child 2 in inches) Missing Values = 99.99
-
-9. **Wt2** (Weight of child2 in pounds) Missing Values = 999.99
-
+##### for outcomes
 
 ```{r}
 ####################################
 ### for Height of child 1 in inches
 ####################################
 # Normal curve
-fun <- dnorm(Twin_dat$HT1, mean = mean(Twin_dat$HT1), sd = sd(Twin_dat$HT1))
+fun <- dnorm(primary_dat$HT_lasso[primary_dat$BO == 1], mean = mean(primary_dat$HT_lasso[primary_dat$BO == 1]), 
+             sd = sd(primary_dat$HT_lasso[primary_dat$BO == 1]))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(Twin_dat$HT1, probability = TRUE, xlab = expression("Height"[1]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(primary_dat$HT_lasso[primary_dat$BO == 1], 
+     probability = TRUE, xlab = expression("Height"[1]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
      axes = FALSE, 
-     main =  expression("Distribution of Height of child 1"))
+     main =  expression("Distribution of Height of Child 1"))
 # Axis
 axis(1)
 # Density
-lines(density(Twin_dat$HT1), col = "red", lwd = 2)
+lines(density(primary_dat$HT_lasso[primary_dat$BO == 1]), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(Twin_dat$HT1, horizontal = TRUE, 
+boxplot(primary_dat$HT_lasso[primary_dat$BO == 1], horizontal = TRUE, 
         axes = FALSE, 
         #ylim = c(-20,65),
         boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(Twin_dat$HT1,              # Data
+stripchart(primary_dat$HT_lasso[primary_dat$BO == 1],              # Data
            #method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
@@ -423,27 +420,27 @@ stripchart(Twin_dat$HT1,              # Data
 ### for Weight of child 1 in pounds
 ####################################
 # Normal curve
-fun <- dnorm(Twin_dat$WT1, mean = mean(Twin_dat$WT1), sd = sd(Twin_dat$WT1))
+fun <- dnorm(primary_dat$WT_lasso[primary_dat$BO == 1], mean = mean(primary_dat$WT_lasso[primary_dat$BO == 1]), sd = sd(primary_dat$WT_lasso[primary_dat$BO == 1]))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(Twin_dat$WT1, probability = TRUE, xlab = expression("Weight"[1]*"(pounds)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(primary_dat$WT_lasso[primary_dat$BO == 1], probability = TRUE, xlab = expression("Weight"[1]*"(pounds)"), col = "grey", #ylim = c(0, max(fun)+0.01),
      axes = FALSE, 
-     main =  expression("Distribution of Weight of child 1"))
+     main =  expression("Distribution of Weight of Child 1"))
 # Axis
 axis(1)
 # Density
-lines(density(Twin_dat$WT1), col = "red", lwd = 2)
+lines(density(primary_dat$WT_lasso[primary_dat$BO == 1]), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(Twin_dat$WT1, horizontal = TRUE, 
+boxplot(primary_dat$WT_lasso[primary_dat$BO == 1], horizontal = TRUE, 
         axes = FALSE, 
         #ylim = c(-20,65),
         boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(Twin_dat$WT1,              # Data
+stripchart(primary_dat$WT_lasso[primary_dat$BO == 1],              # Data
            #method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
@@ -454,27 +451,27 @@ stripchart(Twin_dat$WT1,              # Data
 ### for Height of child 2 in inches
 ####################################
 # Normal curve
-fun <- dnorm(Twin_dat$HT2, mean = mean(Twin_dat$HT2), sd = sd(Twin_dat$HT2))
+fun <- dnorm(primary_dat$HT_lasso[primary_dat$BO == 2], mean = mean(primary_dat$HT_lasso[primary_dat$BO == 2]), sd = sd(primary_dat$HT_lasso[primary_dat$BO == 2]))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(Twin_dat$HT2, probability = TRUE, xlab = expression("Height"[2]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(primary_dat$HT_lasso[primary_dat$BO == 2], probability = TRUE, xlab = expression("Height"[2]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
      axes = FALSE, 
-     main =  expression("Distribution of Height of child 2"))
+     main =  expression("Distribution of Height of Child 2"))
 # Axis
 axis(1)
 # Density
-lines(density(Twin_dat$HT2), col = "red", lwd = 2)
+lines(density(primary_dat$HT_lasso[primary_dat$BO == 2]), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(Twin_dat$HT2, horizontal = TRUE, 
+boxplot(primary_dat$HT_lasso[primary_dat$BO == 2], horizontal = TRUE, 
         axes = FALSE, 
         #ylim = c(-20,65),
         boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(Twin_dat$HT2,              # Data
+stripchart(primary_dat$HT_lasso[primary_dat$BO == 2],              # Data
            #method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
@@ -485,27 +482,27 @@ stripchart(Twin_dat$HT2,              # Data
 ### for Weight of child 1 in pounds
 ####################################
 # Normal curve
-fun <- dnorm(Twin_dat$WT2, mean = mean(Twin_dat$WT2), sd = sd(Twin_dat$WT2))
+fun <- dnorm(primary_dat$WT_lasso[primary_dat$BO == 2], mean = mean(primary_dat$WT_lasso[primary_dat$BO == 2]), sd = sd(primary_dat$WT_lasso[primary_dat$BO == 2]))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(Twin_dat$WT2, probability = TRUE, xlab = expression("Weight"[2]*"(pounds)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(primary_dat$WT_lasso[primary_dat$BO == 2], probability = TRUE, xlab = expression("Weight"[2]*"(pounds)"), col = "grey", ylim = c(0, max(fun)+0.0057),
      axes = FALSE, 
-     main =  expression("Distribution of Weight of child 2"))
+     main =  expression("Distribution of Weight of Child 2"))
 # Axis
 axis(1)
 # Density
-lines(density(Twin_dat$WT2), col = "red", lwd = 2)
+lines(density(primary_dat$WT_lasso[primary_dat$BO == 2]), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(Twin_dat$WT2, horizontal = TRUE, 
+boxplot(primary_dat$WT_lasso[primary_dat$BO == 2], horizontal = TRUE, 
         axes = FALSE, 
         #ylim = c(-20,65),
         boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(Twin_dat$WT2,              # Data
+stripchart(primary_dat$WT_lasso[primary_dat$BO == 2],              # Data
            #method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
@@ -513,9 +510,153 @@ stripchart(Twin_dat$WT2,              # Data
            add = TRUE) 
 
 ```
-#### 3. Correlation Analysis
-##### 3.1 Pearson correlation matrix:
+##### 3.3 Univariate analysis
+Considering the proportion of the missingness, we will exclude the baseline measurements, birth weight and birth height, from the primary analysis. 
+```{r}
+## get the variable list for testing
+names(primary_dat)
+var.list <- colnames(primary_dat)
+var.list <- var.list[-c(1,2,7:11,13:16)]
 
+## test the model setting, with or without a random effect 
+i=4
+mod <- as.formula(sprintf("HT_lasso ~ %s ", var.list[i]))
+
+# compare a model with no random effects to a model with a random effect 
+## with a random effect 
+mod.RE = lme(mod,method="ML",na.action=na.omit,
+    random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),
+                 data = primary_dat)
+## without  a random effect 
+mod = lm(mod,primary_dat)
+
+## AIC test 
+bbmle::AICtab(mod.RE,mod) # lower AIC it is considered significantly better than that model.
+
+summary(mod.RE)$tTable 
+
+round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
+  Outcome = noquote("HT_lasso"),
+  Varible = noquote(var.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
+  dplyr::rename("Estimate" = "Value") |> slice(-1)
+
+
+
+######### 
+# for loop for table Automation
+#########
+# create a empty output table to store results
+result_tab <- data.frame(V1 = character(),
+                         V2 = character(),
+                         V3 = numeric(),
+                         V4 = numeric())
+names(result_tab)[names(result_tab)=='V1']='Outcome'
+names(result_tab)[names(result_tab)=='V2']='Varible'
+names(result_tab)[names(result_tab)=='V3']='Estimate'
+names(result_tab)[names(result_tab)=='V4']='p-Value'
+result_tab 
+
+
+# for loop for outcome HT_lasso
+for(i in 1:length(var.list)) {
+  # step 1: define model formula
+  mod <- as.formula(sprintf("HT_lasso ~ %s ", var.list[i])) # %s would be replaced by the variable name, 
+  
+  # step 2: run model
+  mod.RE = lme(mod,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
+  
+  # step 3: summarize model result
+  fit_result <- round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
+  Outcome = noquote("HT_lasso"),
+  Varible = noquote(var.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
+  dplyr::rename("Estimate" = "Value") |> slice(-1)
+
+  
+  # step 4: append the model result to the final result table
+  result_tab  <- rbind(result_tab,fit_result)
+}
+
+# for loop for outcome WT_lasso
+for(i in 1:length(var.list)) {
+  # step 1: define model formula
+  mod <- as.formula(sprintf("WT_lasso ~ %s ", var.list[i])) # %s would be replaced by the variable name, 
+  
+  # step 2: run model
+  mod.RE = lme(mod,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
+  
+  # step 3: summarize model result
+  fit_result <- round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
+  Outcome = noquote("WT_lasso"),
+  Varible = noquote(var.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
+  dplyr::rename("Estimate" = "Value") |> slice(-1)
+
+  
+  # step 4: append the model result to the final result table
+  result_tab  <- rbind(result_tab,fit_result)
+}
+
+# check the final result table
+result_tab
+View(result_tab)
+
+```
+
+##### 3.4 Multivariate analysis
+
+Model for Height
+```{r}
+mod.height1 = lme(HT_lasso ~ Zyg + AgeMon  ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
+
+mod.height2 = lme(HT_lasso ~ Zyg + Sex + AgeMon  ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
+  
+round(summary(mod.height1)$tTable,3) 
+round(summary(mod.height2)$tTable,3) 
+
+## AIC test 
+bbmle::AICtab(mod.height1,mod.height2) 
+
+```
+
+Model for Weight
+```{r}
+mod.weight1 = lme(WT_lasso ~ Zyg + AgeMon ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
+mod.weight2 = lme(WT_lasso ~ Zyg + Sex + AgeMon ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
+ 
+round(summary(mod.weight1)$tTable,3) 
+round(summary(mod.weight2)$tTable,3) 
+
+## AIC test 
+bbmle::AICtab(mod.weight1,mod.weight2) 
+
+```
+
+#### 4. Subgroup Analysis
+##### 4.1
+
+##### 4.2 Pearson correlation matrix:
+
+```{r}
+names(primary_dat)
+
+for_corr <- primary_dat |> dplyr::select(BO,Zyg,Sex,Race,AgeMon,BWOZ,BirLenth) |>
+  mutate_if(is.factor, as.numeric)
+
+corrplot2(
+  data = for_corr,
+  method = "pearson",
+  sig.level = 0.05,
+  order = "original",
+  diag = FALSE,
+  type = "upper",
+  tl.srt = 75
+)
+```
 
 ## Results {#sec-results}
 
