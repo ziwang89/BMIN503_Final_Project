@@ -45,6 +45,8 @@ library(gridExtra)
 library(cowplot)
 library(gtsummary)
 library(nlme)
+library(rstatix)
+library(hrbrthemes)
 
 # Function for corr test & plot
 corrplot2 <- function(data,
@@ -362,8 +364,25 @@ Next, we will construct the univariate and multivariate analyses.
 
 First of all, let's visualize the distribution for each Zygosity subgroup by gender. 
 ```{r}
+primary_dat |> dplyr::select(Zyg,Sex) |> tbl_summary(by = Sex) |> add_overall() |> add_n() |> bold_labels()
+
+
 # proportions in Zygosity groups by Gender 
-ggplot(primary_dat, aes(fill=Sex, y=Sex, x=Zyg)) + 
+ggplot(primary_dat,aes(x = Zyg, y = ..prop.., fill =Sex, group = Sex)) +
+  geom_bar() +
+  geom_label(aes(label = ..count..), position = position_stack(vjust = 0.5), 
+             stat = "count", 
+            colour = "white")+
+  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  scale_x_discrete(name="Zygosity",
+                   labels=c("1" = "1\nMonozygotic", "2" = "2\nDizygotic", "3" = "3\nTwo Adoptees",
+                            "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
+  scale_y_continuous(labels = scales::percent) +
+    theme_ipsum() 
+
+
+# proportions in Zygosity groups by Gender 
+ggplot(primary_dat, aes(fill=Sex, y = ..prop.., x=Zyg)) + 
     #geom_bar(position="stack", stat="identity") +
     geom_bar(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..]), position="dodge" ) +
     geom_text(aes( y=..count../tapply(..count.., ..x.. ,sum)[..x..], label=scales::percent(..count../tapply(..count.., ..x.. ,sum)[..x..]) ),
@@ -637,14 +656,165 @@ bbmle::AICtab(mod.weight1,mod.weight2)
 ```
 
 #### 4. Subgroup Analysis
-##### 4.1
-
-##### 4.2 Pearson correlation matrix:
+##### 4.1 Data Preparation and Exploration 
 
 ```{r}
-names(primary_dat)
+#View(Twin_subdat)
+###### recall
+## to generate a sub data set filtered by data quality of height and weight at birth
+#Twin_subdat <- TwinData |> filter(!(IDNO %in% Twin_missBirthInfo$IDNO)) |> group_by(IDNO) |> filter(n()==2)
 
-for_corr <- primary_dat |> dplyr::select(BO,Zyg,Sex,Race,AgeMon,BWOZ,BirLenth) |>
+Twin_subdat |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
+Twin_subdat |> dplyr::select(Zyg,BO) |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
+
+## to generate a sub data set including  MZ (monozygotic) & DZ (dizygotic) only
+subgrp_data <- Twin_subdat |> filter(Zyg %in% c(1,2)) 
+
+
+## to create new variables for further analysis and missing imputation
+#. **BWOZ** Birth Weight in ounces Missing = 999.00
+#. **BirLenth** Birth Length in inches Missing = 99.90
+
+subgrp_data <- subgrp_data |> mutate(## variables created below are for missing imputation
+                               HT_na = if_else(HT != 99.99,HT, NA_integer_),
+                               WT_na = if_else(WT != 999.99,WT,NA_integer_),
+                               BWOZ_na = if_else(BWOZ != 999.00,BWOZ, NA_integer_),
+                               BirLenth_na = if_else(BirLenth != 99.90,BirLenth, NA_integer_),) |> as.data.frame()
+
+#dim(primary_dat)
+## to create descriptive table for the subgroup data set
+subgrp_data |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels() 
+
+
+## to create a imputation subset
+for_imput <- subgrp_data %>%
+  select(HT_na, WT_na, 
+         BWOZ_na, BirLenth_na,
+         AgeMon,Zyg,Sex,Race)
+
+## to impute missing values of Birth length using laso.norm: Lasso linear regression.
+for_imput <- for_imput |> ungroup() |> dplyr::mutate(
+  BirLenth_lasso = complete(mice(for_imput, method = "lasso.norm"))$BirLenth_na)
+
+
+# to generate a descriptive statistics table of the sub dataset
+for_imput |> dplyr::select(BirLenth_na,BirLenth_lasso) |> tbl_summary()
+
+# final subgroup predictors
+subgrp_data$BirLenth_lasso <- for_imput$BirLenth_lasso
+
+# to revise descriptive table for the subgroup data set
+subgrp_data |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels() 
+
+
+```
+
+##### 4.2 Subgroup Data Visualization 
+
+```{r}
+# proportions in Zygosity groups by Gender 
+ggplot(subgrp_data,aes(x = Zyg, y = ..prop.., fill =Sex, group = Sex)) +
+  geom_bar() +
+  geom_label(aes(label = ..count..), position = position_stack(vjust = 0.5), 
+             stat = "count", 
+            colour = "white")+
+  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  scale_x_discrete(name="Zygosity",
+                   labels=c("1" = "1\nMonozygotic", "2" = "2\nDizygotic", "3" = "3\nTwo Adoptees",
+                            "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
+  scale_y_continuous(labels = scales::percent) +
+    theme_ipsum() 
+
+
+# Plot outcome distributions
+### by Sex
+HT_Sex <- subgrp_data %>%
+  ggplot(aes(x = HT_na,
+             y = Sex,
+             fill = Sex)) +
+  ggtitle("Plot of Distribution of Height \nby Sex") +
+  xlab("Height (inches)") +
+  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  ggridges::geom_density_ridges(bandwidth = 4) + theme_ipsum() 
+
+
+WT_Sex <- subgrp_data %>%
+  ggplot(aes(x = WT_na,
+             y = Sex,
+             fill = Sex)) +
+  ggtitle("Plot of Distribution of Weight \nby Sex") +
+  xlab("Weight (pounds)") +
+  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  ggridges::geom_density_ridges(bandwidth = 4) + theme_ipsum() 
+
+
+### by Birth Order
+HT_BO <- subgrp_data %>%
+  ggplot(aes(x = HT_na,
+             y = BO,
+             fill = BO)) +
+  ggtitle("Plot of Distribution of Height \nby Birth Order") +
+  xlab("Height (inches)") +
+  ylab("Birth Order") +
+  scale_fill_discrete(name = "Birth Order", labels = c("Child 1", "Child 2")) +
+  ggridges::geom_density_ridges(bandwidth = 4) + theme_ipsum() 
+
+
+WT_BO <- subgrp_data %>%
+  ggplot(aes(x = WT_na,
+             y = BO,
+             fill = BO)) +
+  ggtitle("Plot of Distribution of Weight \nby Birth Order") +
+  xlab("Weight (pounds)") +
+  ylab("Birth Order") +
+  scale_fill_discrete(name = "Birth Order", labels = c("Child 1", "Child 2")) +
+  ggridges::geom_density_ridges(bandwidth = 4) + theme_ipsum() 
+
+
+
+plot_grid(HT_Sex,WT_Sex,
+          HT_BO,WT_BO,
+          nrow = 2, ncol = 2)
+
+```
+
+In light of above data visualizations, we can conclude that the distributions of age across both sex and birth order groups are fairly similar and likely not different between both sex and birth order groups. We could also statistically explore this using a suitable Wilcoxon test before performing the main group comparison. 
+
+```{r}
+# Mann-Withney U test
+## by SEX
+subgrp_data %>%
+  wilcox_test(HT_na ~ Sex,
+              detailed = TRUE) %>%
+  glimpse()
+
+subgrp_data %>%
+  wilcox_test(WT_na ~ Sex,
+              detailed = TRUE) %>%
+  glimpse()
+
+# Mann-Withney U test
+## by Birth Order
+subgrp_data %>%
+  wilcox_test(HT_na ~ BO,
+              detailed = TRUE) %>%
+  glimpse()
+
+subgrp_data %>%
+  wilcox_test(WT_na ~ BO,
+              detailed = TRUE) %>%
+  glimpse()
+```
+
+According to the P-values of each test, the test is not significant for neither of groups, Thus, the groups are considered to be not different. 
+
+##### 4.3 Pearson correlation matrix:
+
+```{r}
+names(subgrp_data)
+
+for_corr <- subgrp_data |> dplyr::select(BO,Zyg,Sex,Race,AgeMon,
+                                         BWOZ,BirLenth_lasso) |>
   mutate_if(is.factor, as.numeric)
 
 corrplot2(
@@ -656,6 +826,150 @@ corrplot2(
   type = "upper",
   tl.srt = 75
 )
+```
+
+##### 4.4 Univariate Analysis
+
+```{r}
+## get the variable list for testing
+names(subgrp_data)
+variable.list <- colnames(subgrp_data)
+variable.list
+variable.list <- variable.list[-c(1,8:11,13:16)]
+
+variable.list
+## test the model setting, with or without a random effect 
+i=6
+mod <- as.formula(sprintf("HT_na ~ %s ", variable.list[i]))
+
+# compare a model with no random effects to a model with a random effect 
+## with a random effect 
+mod.RE = lme(mod,method="ML",na.action=na.omit,
+    random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),
+                 data = subgrp_data)
+## without  a random effect 
+mod = lm(mod,subgrp_data)
+
+## AIC test 
+bbmle::AICtab(mod.RE,mod) # lower AIC it is considered significantly better than that model.
+
+summary(mod.RE)$tTable 
+
+round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
+  Outcome = noquote("HT"),
+  Varible = noquote(variable.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
+  dplyr::rename("Estimate" = "Value") |> slice(-1)
+
+
+
+######### 
+# for loop for table Automation
+#########
+# create a empty output table to store results
+subgrpresult_tab <- data.frame(V1 = character(),
+                         V2 = character(),
+                         V3 = numeric(),
+                         V4 = numeric())
+names(subgrpresult_tab)[names(subgrpresult_tab)=='V1']='Outcome'
+names(subgrpresult_tab)[names(subgrpresult_tab)=='V2']='Varible'
+names(subgrpresult_tab)[names(subgrpresult_tab)=='V3']='Estimate'
+names(subgrpresult_tab)[names(subgrpresult_tab)=='V4']='p-Value'
+subgrpresult_tab 
+
+
+# for loop for outcome HT_lasso
+for(i in 1:length(variable.list)) {
+  # step 1: define model formula
+  mod <- as.formula(sprintf("HT_na ~ %s ", variable.list[i])) # %s would be replaced by the variable name, 
+  
+  # step 2: run model
+  mod.RE = lme(mod,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+  
+  # step 3: summarize model result
+  fit_result <- round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
+  Outcome = noquote("HT"),
+  Varible = noquote(variable.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
+  dplyr::rename("Estimate" = "Value") |> slice(-1)
+
+  
+  # step 4: append the model result to the final result table
+  subgrpresult_tab  <- rbind(subgrpresult_tab,fit_result)
+}
+
+# for loop for outcome WT_lasso
+for(i in 1:length(variable.list)) {
+  # step 1: define model formula
+  mod <- as.formula(sprintf("WT_na ~ %s ", variable.list[i])) # %s would be replaced by the variable name, 
+  
+  # step 2: run model
+  mod.RE = lme(mod,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+  
+  # step 3: summarize model result
+  fit_result <- round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
+  Outcome = noquote("WT"),
+  Varible = noquote(variable.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
+  dplyr::rename("Estimate" = "Value") |> slice(-1)
+
+  
+  # step 4: append the model result to the final result table
+  subgrpresult_tab  <- rbind(subgrpresult_tab,fit_result)
+}
+
+# check the final result table
+
+View(subgrpresult_tab)
+
+```
+
+
+##### 3.4 Multivariate analysis
+
+Model for Height
+```{r}
+
+subgrpmod.height1 = lme(HT_na~ Sex + AgeMon + BWOZ  ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+
+subgrpmod.height2 = lme(HT_na ~ Sex + AgeMon + BirLenth_lasso ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+
+subgrpmod.height3 = lme(HT_na ~ Sex + AgeMon + BirLenth_lasso:BWOZ ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+
+  
+round(summary(subgrpmod.height1)$tTable,3) 
+round(summary(subgrpmod.height2)$tTable,3) 
+round(summary(subgrpmod.height3)$tTable,3) 
+
+## AIC test 
+bbmle::AICtab(subgrpmod.height1,subgrpmod.height2) 
+bbmle::AICtab(subgrpmod.height1,subgrpmod.height3) 
+bbmle::AICtab(subgrpmod.height2,subgrpmod.height3) 
+```
+
+Model for Weight
+```{r}
+subgrpmod.weight1 = lme(HT_na~ AgeMon + BWOZ  ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+
+subgrpmod.weight2 = lme(HT_na ~ AgeMon + BirLenth_lasso ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+
+subgrpmod.weight3 = lme(HT_na ~ AgeMon + BirLenth_lasso:BWOZ ,method="ML",na.action=na.omit, 
+               random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
+
+  
+round(summary(subgrpmod.weight1)$tTable,3) 
+round(summary(subgrpmod.weight2)$tTable,3) 
+round(summary(subgrpmod.weight3)$tTable,3) 
+
+## AIC test 
+bbmle::AICtab(subgrpmod.weight1,subgrpmod.weight2) 
+bbmle::AICtab(subgrpmod.weight1,subgrpmod.weight3) 
+bbmle::AICtab(subgrpmod.weight2,subgrpmod.weight3) 
+
 ```
 
 ## Results {#sec-results}
