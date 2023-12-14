@@ -14,7 +14,7 @@ DUE DATE FOR FINAL VERSION: 12/13/23 11:59PM. This is a hard deadline. Turn in w
 
 <!-- Links -->
 
-Twin studies are useful to disentangle the relative importance of environmental and genetic influences on individual traits and behaviors. Two types of twins can be included in these studies: biological and virtual twins. Biological twins include monozygotic (MZ) twins and dizygotic (DZ) twins. MZ twins are developed from the same zygote and thus have the same genetic components. Dizygotic (DZ) twins are developed from two different zygotes and like any other siblings, share in average 50% of their genetic variants. Virtual twins (VTs) are two adoptees or one natural child plus one adoptee who are of the same age and are raised together since infancy. VT twins do not have much of the genes in common. All MZ, DZ and VT twins share many aspects of their environment. Thus, MZ twins are almost always more similar than DZ twins due to higher genetic similarity coupled with the same amount of environmental similarity, while DZ twins share more similarity than VT twins. By comparing the similarity of MZ, DZ, and VT twins, we can decompose the roles of genetic and environmental factors on traits of interest. The goal of this twin study was to understand whether the genetic or environmental factors influence height and weight more. The data "twin.txt" included 1098 individuals from 164 monozygotic (MZ) twin pairs, 156 dizygotic (DZ) twin pairs, 132 virtual twin (VT) pairs.
+Twin studies are useful to disentangle the relative importance of environmental and genetic influences on individual traits and behaviors. Two types of twins can be included in these studies: biological and virtual twins. Biological twins include monozygotic (MZ) twins and dizygotic (DZ) twins. MZ twins are developed from the same zygote and thus have the same genetic components. Dizygotic (DZ) twins are developed from two different zygotes and like any other siblings, share in average 50% of their genetic variants. Virtual twins (VTs) are two adoptees or one natural child plus one adoptee who are of the same age and are raised together since infancy. VT twins do not have much of the genes in common. All MZ, DZ and VT twins share many aspects of their environment. Thus, MZ twins are almost always more similar than DZ twins due to higher genetic similarity coupled with the same amount of environmental similarity, while DZ twins share more similarity than VT twins. By comparing the similarity of MZ, DZ, and VT twins, we can decompose the roles of genetic and environmental factors on traits of interest. The goal of this twin study was to understand whether the genetic or environmental factors influence height and weight more. The data "twin.txt" included 1098 individuals from 168 monozygotic (MZ) twin pairs, 169 dizygotic (DZ) twin pairs, 139 virtual twin (VT) pairs.
 
 Data Dictionary
 
@@ -26,7 +26,7 @@ Variable Names:
 
 3. **Zyg** (Zygosity): 1 = MZ (monozygotic), 2 = DZ (dizygotic), 3 = VT (2 adoptees), 4 = VT (1 adoptee, 1 biological child), 5 = Full sibs (2 siblings)
 
-4. **Sex** 1 = Female, 2 = Male
+4. **Sex** 1 = Male, 2 = Female
 
 5. **Agemon** (Age in Months)
 

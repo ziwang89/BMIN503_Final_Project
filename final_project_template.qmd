@@ -6,30 +6,28 @@ format: html
 editor: visual
 number-sections: true
 embed-resources: true
+execute: 
+  warning: false
 ---
 
 ------------------------------------------------------------------------
 
 ## Overview {#sec-overview}
 
-Studying both biological and virtual twins can provide comprehensive insights into the influences of genetics and environment. Biological twins help emphasize the impact of genetic factors, whereas virtual twins highlight the role of shared early-life environmental factors. The main objective of this twin study is to distinguish the contribution of nature in influencing height and weight, as opposed to nurture."
+Studying both biological and virtual twins can provide comprehensive insights into the influences of genetics and environment. Biological twins help emphasize the impact of genetic factors, whereas virtual twins highlight the role of shared early-life environmental factors. The main objective of this twin and adoption study is to distinguish the contribution of nature in influencing variations in weight and height from birth through late age, as opposed to nurture.
 
 ## Introduction {#sec-introduction}
 
-There is no doubt that genetic and environmental factors significantly impact early childhood growth and development. Complex interactions and correlations exist among genetic, prenatal environmental, and postnatal environmental influences, leading to a range of health-related outcomes. However, much debate has concerned the dominant influence of nature or nurture. Twin and adoption studies have been widely employed by researchers to assess differences within study pairs and estimate the contributions of genetic and environmental factors to various traits and behaviors. In this study, we aim to evaluate whether genetics or the shared environment significantly influences the variations in height and weight among pairs of twins, siblings, and adoptees.
+There is no doubt that genetic and environmental factors significantly impact early childhood growth and development. However, much debate has concerned the dominant influence of nature or nurture. Twin and adoption studies have been widely employed by researchers to assess differences within study pairs and estimate the contributions of genetic and environmental factors to various traits and behaviors. The twin design has relied on the assumption that identical and fraternal twin pairs share equally similar environments, accounting for their genetic similarity. In contrast, the adoption design's assumption is grounded in whether the two virtual twins, raised together since infancy but not sharing many genes, exhibit traits and behaviors resembling their biological parents in the adoptive family. Complex interactions and correlations exist among genetic, prenatal environmental, and postnatal environmental influences, leading to a range of health-related outcomes. In this study, we aim to evaluate whether genetics or the shared environment significantly influences the variations in height and weight among pairs of twins, siblings, and adoptees.
 
-When we dive into the study of height and weight in twins and adoptees, genes certainly lay the groundwork, but where and how a child is raised also play a crucial role of their early growth and development. This complex question requires insights from various fields. 
-In the scientific area, geneticists start searching for the specific genes that affect height and weight the most. Meanwhile, nutrition experts bring in their expertise to exploring how their diets shape these physical characteristics. Epidemiologists shift their concerns to figure out how common certain height and weight traits are and what factors are more likely to contribute to these differences, while biostatisticians step into analyzing datasets and quantifying the relative contributions of genetics and environment to variations in individual characteristics.
-These fields will share their own piece to the puzzle to understanding the interfaces of nature and nurture in children’s early years of growth and development.
+Human growth is a complex process that is not well-understood. This complex question requires insights from various fields. In the scientific area, geneticists start searching for the specific genes that affect height and weight the most. Meanwhile, nutrition experts bring in their expertise to exploring how their diets shape these physical characteristics. Epidemiologists shift their concerns to figure out how common certain height and weight traits are and what factors are more likely to contribute to these differences, while biostatisticians step into analyzing datasets and quantifying the relative contributions of genetics and environment to variations in individual characteristics. These fields will share their own piece to the puzzle to understanding the interfaces of nature and nurture in children's early years of growth and development.
 
 ## Methods {#sec-methods}
 
-Describe the data used and general methodological approach used to address the problem described in the @sec-introduction. Subsequently, incorporate full R code necessary to retrieve and clean data, and perform analysis. Be sure to include a description of code so that others (including your future self) can understand what you are doing and why.
+Using a mixture of real-world data and simulated data, this preliminary study was prepared to assess the relative importance of genetic and environmental effects on variations of height and weight. We studied samples of twins and adoptees, in a total of 1098 individuals. The samples consisted of 168 pairs of monozygotic (identical) twins, 169 pairs of dizygotic (fraternal) twins, and 139 of virtual twins (at lease one adoptee). Additionally, 73 of full sibling pairs are also involved. Our primary outcomes are height (**HT1** & **HT2**) and weight (**WT1** & **WT2**) of child 1 and 2 in each pair. Our primary exposures are birth height (**BirLenth**) and weight (**BWOZ**) of each individual. There are other factors were also considered, including age, sex and zygosity. Descriptive summary statistics of the raw data set by birth order **BO** is demonstrated in following Table 1.
 
-Twin studies are useful to disentangle the relative importance of environmental and genetic influences on individual traits and behaviors. Two types of twins can be included in these studies: biological and virtual twins. Biological twins include monozygotic (MZ) twins and dizygotic (DZ) twins. MZ twins are developed from the same zygote and thus have the same genetic components. Dizygotic (DZ) twins are developed from two different zygotes and like any other siblings, share in average 50% of their genetic variants. Virtual twins (VTs) are two adoptees or one natural child plus one adoptee who are of the same age and are raised together since infancy. VT twins do not have much of the genes in common. All MZ, DZ and VT twins share many aspects of their environment. Thus, MZ twins are almost always more similar than DZ twins due to higher genetic similarity coupled with the same amount of environmental similarity, while DZ twins share more similarity than VT twins. By comparing the similarity of MZ, DZ, and VT twins, we can decompose the roles of genetic and environmental factors on traits of interest.
-The goal of this twin study was to understand whether the genetic or environmental factors influence height and weight more. The data “twin.txt” included 1098 individuals from 168 monozygotic (MZ) twin pairs, 169 dizygotic (DZ) twin pairs, 139 virtual twin (VT) pairs.
+### 1. Data Exploration and Preparation
 
-### 1. Data Exploration
 #### 1.1 Load the necessary R packages:
 
 ```{r}
@@ -95,6 +93,7 @@ corrplot2 <- function(data,
 ```
 
 #### 1.2 Load and explore the dataset:
+
 ```{r}
 ## read in dataset
 #list.files("/Users/ziwang89/dropbox/penn_phd/BMIN503:EPID600_2023FALL/final project/")
@@ -123,9 +122,13 @@ Twin_dat$BO[917] = 1
 
 #pre-view the data set
 head(Twin_dat,10)
+
+# Descriptive summary statistics of the raw data set by birth order 
+Twin_dat |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
+
 ```
 
-By digging into the data set, we see that there is information overlap between variables. There are two rows of each study pair, and the variable **BO** indicates the Birth Order. However, in the column of the variable **HT1**, it not only lists the height of child 1 as defined but also includes the height of child 2 in the second row of each pair, same as the column of the variable **WT1**. Thus, we can regenerate our outcomes as below.
+By digging into the data set, we observed an overlap of information between variables. There are two rows of each study pair, and the variable **BO** indicates the Birth Order. However, in the column of the variable **HT1**, it not only lists the height of child 1 as defined but also includes the height of child 2 in the second row of each pair, same as the column of the variable **WT1**. Thus, we regenerated our primary outcomes as below and created a sub-dataset of the twin data.
 
 ```{r}
 # check the distribution of the main outcomes
@@ -138,11 +141,10 @@ length(Twin_dat$HT2[Twin_dat$BO==1])
 Twin_dat <- Twin_dat |> group_by(IDNO) |> mutate(check.HT = ifelse( HT1[BO==2] == HT2[BO==1],1,0 ),
                                                  check.WT = ifelse( WT1[BO==2] == WT2[BO==1],1,0 )) 
 
-
+# list the odds 
 Twin_dat |> filter(check.HT==0 | check.WT==0)
 
 # combine the information of four potential outcomes to create new accurate outcomes for each pair
-
 Twin_dat <- Twin_dat |> group_by(IDNO) |> mutate(
   HT = case_when(
     BO == 1 ~ HT1[BO==1],
@@ -159,19 +161,22 @@ head(Twin_dat[,c("IDNO","BO","HT1","HT2","HT",
                     "WT1","WT2","WT")])
 
 # pull a new sub data set for further analysis
-names(Twin_dat)
+#names(Twin_dat)
 TwinData <- Twin_dat |> dplyr::select(IDNO,BO,Zyg,Sex,Race,
                                       AgeMon,BWOZ,BirLenth,
                                       HT,WT)
 
 ```
 
-
 ### 2. Descriptive Analysis
-#### 2.1 Descriptive statistics of the raw data set:
+
+#### 2.1 Descriptive statistics of the sub twin data set:
+
+Together, 61.38% participants included in the current study are biological twins. We also categorized subjects into Infancy (age 0-1.99), Childhood (age 2-11.99), Adolescence (age 12–17.99) or Adulthood groups (age 18 and above) based on their age by month. The sample was 87.34% children ranged in age from 2 to 12 years old (median age = 8.70 with IQR [7.15, 10.33]) and 48.45% male. Main measurements and baseline characteristics of the 1098 subjects are demonstrated in following summary tables and figure. 
+
 ```{r}
 ## to change data type based on given variables 
-names(TwinData)
+#names(TwinData)
 
 TwinData$BO <- factor(TwinData$BO,levels = c(1,2))
 TwinData$Zyg <- factor(TwinData$Zyg,levels = c(1,2,3,4,5))
@@ -190,13 +195,31 @@ TwinData <- TwinData |> mutate(AgeYEAR = round(AgeMon/12,2),
 TwinData$LifespanStages <- factor(TwinData$LifespanStages, levels = c("Infancy","Childhood","Adolescence","Adulthood"))
 TwinData$AgeMon <- as.numeric(TwinData$AgeMon )
 
-## to generate a descriptive statistics table of the raw twins dataset by birth order
-TwinData |> tbl_summary(by = BO) |>
-  add_p()
+## to generate a descriptive statistics table of the raw twins dataset by Birth Order / Sex
+TwinData |> tbl_summary(by = BO) |> add_p()|> bold_labels()
+
+TwinData |> tbl_summary(by = Sex) |> add_p()|> bold_labels()
+
+
+## to generate a proportional stacked bar graph of the types of zogosity by Sex 
+ggplot(TwinData,aes(x = Zyg, y = ..prop.., fill =Sex, group = Sex)) +
+  geom_bar() +
+  geom_label(aes(label = ..count..), position = position_stack(vjust = 0.5), 
+             stat = "count", 
+            colour = "white")+
+  scale_fill_discrete(name = "Sex", labels = c("Male", "Female")) +
+  scale_x_discrete(name="Zygosity",
+                   labels=c("1" = "1\nMonozygotic", "2" = "2\nDizygotic", "3" = "3\nTwo Adoptees",
+                            "4"="4\n1 Adoptee, \n1 Biological Child","5"="5\nTwo Siblings"))  +
+  scale_y_continuous(labels = scales::percent) +
+    theme_ipsum() 
 
 ```
 
 #### 2.2 Descriptive statistics of missing values:
+
+Participants were considered to be excluded from this sample if: (a) they had missing data on their birth weight or/and birth height, or (b) if were missing outcome measurement data in weight or/and height. Exclusion of the individuals with missing/unknown race (6 out of 1098) did not affect much on the overall sample mean for height and weight. The subjects (413 out of 1098) with missing data on both baseline measurements at birth were pulled out from the sub twin data.
+
 ```{r}
 ## to count the number of missingness for each variables contained missingness
 ### for main outcomes
@@ -218,6 +241,8 @@ length(TwinData$IDNO[TwinData$BirLenth==99.90 & TwinData$BWOZ==999.00]) #413
 Twin_missBirthInfo <- TwinData |> filter( BWOZ == 999.00 &
                                       BirLenth == 99.90 )
 
+Twin_missBirthInfo |> dplyr::select(Zyg,BO) |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
+
 dim(Twin_missBirthInfo)
 #413
 ```
@@ -226,12 +251,14 @@ dim(Twin_missBirthInfo)
 
 ##### for categorical variables
 
-According to the Data Dictionary,
-**Zyg** (Zygosity): 1=MZ 2=DZ 3=VT (2 adoptees) 4=VT (1 adoptee, 1 biological child) 5=Full sibs
+Considering the relatively high percentage of missing data for the primary predictors, we explored a sub-dataset of participants with high data completeness. Then, we visualized the distributions based on different categorical variables to select a suitable cohort for subgroup analysis.
 
-**Sex** 1 = Female, 2 = Male
+According to the Data Dictionary, **Zyg** (Zygosity): 1=MZ 2=DZ 3=VT (2 adoptees) 4=VT (1 adoptee, 1 biological child) 5=Full sibs
+
+**Sex** 1 = Male, 2 = Female
 
 **Race** 1=African-American, 2=American Indian/Alaska Native 3=Asian 4=Native Hawaiian/pacific Islander 5=White 6=Hispanic 7=South American Indian 8 = Mixed 9 = Other 0 = Missing
+
 ```{r}
 ## to generate a sub data set filtered by data quality of height and weight at birth
 Twin_subdat <- TwinData |> filter(!(IDNO %in% Twin_missBirthInfo$IDNO)) |> group_by(IDNO) |> filter(n()==2)
@@ -257,34 +284,30 @@ tab1(Twin_subdat$Race,
   main="Distribution of Race Groups in sub data set")
 ```
 
-Accordingly, there are 413 subjects who are missing both birth weight and birth length in the raw data set. That is 37.6% of our study cohort. 
-Considering the missing proportion of predictor variables, our primary endpoint will be the height and weight variation among all biological and virtual twins; whereas, our primary endpoint will be the height and weight variation for biological twins only. Additionally, the data is very skewed based on race categories.  
+The primary baseline predictors in our dataset exhibit a notable issue of missing value. Accordingly, there are 413 subjects who are missing both birth weight and birth length, which is 37.6% of our overall study cohort. Consequently, we decided to separate our analyses into two parts to ensure the robustness. Our primary endpoint will be the height and weight variation among all biological and virtual twins, excluding the height and weight at birth; whereas, our secondary endpoint will focus on the variation among biological twins only. 
 
+### 3. Primary Analysis
 
-### 3. Primary Analysis 
-#### 3.1 Data Preparation 
+#### 3.1 Data Preparation and Imputation for Missing Data
 
-There isn't much information we could gather from the height and weight at birth for virtual twins due to high proportions of missing values. Thus, we will exclude the two variables **BWOZ** and **BirLenth** from our primary analysis. We will apply data imputation methods for the rest variables.
+In primary study, we investigated variations in height and weight among all sampled pairs, using basic demographic characteristics only. Our objective is to develop an optimal multivariate model that accurately quantifies the influencing factors contributing to variability in height and weight.
 
-Accordingly,
-**Ht1** (Height of child 1 in inches) Missing Values = 99.99
-**Wt1** (Weight of child 1 in pounds Missing Values = 999.99
-**Ht2** (Height of child 2 in inches) Missing Values = 99.99
-**Wt2** (Weight of child2 in pounds Missing Values = 999.99
-**Race** 1 = African-American, 2 = American Indian/Alaska Native, 3 = Asian, 4 = Native, Hawaiian/pacific Islander, 5 = White, 6 = Hispanic, 7 = South American Indian, 8 = Mixed, 9 = Other, 0 = Missing
+First of all, we adopted two popular imputation approaches, missForest and Lasso linear regression, to fill in missing data in other covariates of interest. The imputed variable distributions generated by the more proper strategy were then applied to handle missing data.
 
 ```{r}
-names(TwinData)
+#names(TwinData)
 #View(Twin_dat)
+#dim(TwinData)
+
+summary(Twin_subdat)
+dim(Twin_subdat)
+
 dim(TwinData)
 
 ## to create new variables for further analysis and missing imputation
 primary_dat <- TwinData |> mutate(## variables created below are for missing imputation
                                HT_imp = if_else(HT != 99.99,HT, NA_integer_),
                                WT_imp = if_else(WT != 999.99,WT,NA_integer_)) |> as.data.frame()
-#dim(primary_dat)
-summary(primary_dat)
-
 primary_dat$HT <- as.numeric(primary_dat$HT)
 primary_dat$WT <- as.numeric(primary_dat$WT)
 primary_dat$HT_imp <- as.numeric(primary_dat$HT_imp)
@@ -294,7 +317,7 @@ primary_dat$WT_imp <- as.numeric(primary_dat$WT_imp)
 imput_numeric <- primary_dat %>%
   select(HT_imp, WT_imp, AgeMon, Zyg, Sex,Race)
 
-## to impute missing values using missForest & laso.norm: Lasso linear regression.
+## to impute missing values using missForest & lasso.norm: Lasso linear regression.
 imput_numeric <- imput_numeric |> ungroup() |> dplyr::mutate(
   HT_missForest = missForest(imput_numeric)$ximp$HT_imp,
   WT_missForest = missForest(imput_numeric)$ximp$WT_imp,
@@ -357,15 +380,14 @@ primary_dat$HT_lasso <- imput_numeric$HT_lasso
 primary_dat$WT_lasso <- imput_numeric$WT_lasso
 ```
 
-The Miss Forest imputation technique is based on the Random Forest algorithm. As a non-parametric imputation method, it estimates the function in a way that’s closest to the data points without any assumptions about the function form. On the other hand, MICE stands for Multivariate Imputation via Chained Equations, and it’s one of the most common packages for R users. Lasso linear regression method from mice package is applied here.Take a look at the variable distribution changes by summary table and a grid of histograms, we know the imputed variables are in a good shape. The imputed distributions overall look much closer to the original one. The lasso-imputed height and weight distributions look the closest. 
-Next, we will construct the univariate and multivariate analyses.
+The Miss Forest imputation technique is based on the Random Forest algorithm. As a non-parametric imputation method, it estimates the function in a way that's closest to the data points without any assumptions about the function form. On the other hand, MICE stands for Multivariate Imputation via Chained Equations, and it's one of the most common packages for R users. Lasso linear regression method from mice package is applied here.Take a look at the variable distribution changes by summary table and a grid of histograms, we know the imputed variables are in a good shape. The imputed distributions overall look much closer to the original one. The lasso-imputed height and weight distributions look the closest. Next, we will construct the univariate and multivariate analyses.
 
 #### 3.2 Primary Data Visualization
 
-First of all, let's visualize the distribution for each Zygosity subgroup by gender. 
+Let's visualize the distribution for each Zygosity subgroup by gender after imputation.
+
 ```{r}
 primary_dat |> dplyr::select(Zyg,Sex) |> tbl_summary(by = Sex) |> add_overall() |> add_n() |> bold_labels()
-
 
 # proportions in Zygosity groups by Gender 
 ggplot(primary_dat,aes(x = Zyg, y = ..prop.., fill =Sex, group = Sex)) +
@@ -398,130 +420,68 @@ ggplot(primary_dat, aes(fill=Sex, y = ..prop.., x=Zyg)) +
 
 ```
 
-
 ##### for outcomes
 
 ```{r}
 ####################################
-### for Height of child 1 in inches
+### for Height in inches
 ####################################
 # Normal curve
-fun <- dnorm(primary_dat$HT_lasso[primary_dat$BO == 1], mean = mean(primary_dat$HT_lasso[primary_dat$BO == 1]), 
-             sd = sd(primary_dat$HT_lasso[primary_dat$BO == 1]))
+fun <- dnorm(primary_dat$HT_lasso, mean = mean(primary_dat$HT_lasso), 
+             sd = sd(primary_dat$HT_lasso))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(primary_dat$HT_lasso[primary_dat$BO == 1], 
-     probability = TRUE, xlab = expression("Height"[1]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(primary_dat$HT_lasso, 
+     probability = TRUE, xlab = expression("Height (inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
      axes = FALSE, 
-     main =  expression("Distribution of Height of Child 1"))
+     main =  expression("Distribution of Height"))
 # Axis
 axis(1)
 # Density
-lines(density(primary_dat$HT_lasso[primary_dat$BO == 1]), col = "red", lwd = 2)
+lines(density(primary_dat$HT_lasso), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(primary_dat$HT_lasso[primary_dat$BO == 1], horizontal = TRUE, 
+boxplot(primary_dat$HT_lasso, horizontal = TRUE, 
         axes = FALSE, 
         #ylim = c(-20,65),
         boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(primary_dat$HT_lasso[primary_dat$BO == 1],              # Data
+stripchart(primary_dat$HT_lasso,              # Data
            #method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
            # vertical = TRUE,   # Vertical mode
            add = TRUE) 
 
+
 ####################################
-### for Weight of child 1 in pounds
+### for Weight in pounds
 ####################################
 # Normal curve
-fun <- dnorm(primary_dat$WT_lasso[primary_dat$BO == 1], mean = mean(primary_dat$WT_lasso[primary_dat$BO == 1]), sd = sd(primary_dat$WT_lasso[primary_dat$BO == 1]))
+fun <- dnorm(primary_dat$WT_lasso, mean = mean(primary_dat$WT_lasso), sd = sd(primary_dat$WT_lasso))
 max(fun)
 
 par(mfrow = c(1, 1))
 # Histogram
-hist(primary_dat$WT_lasso[primary_dat$BO == 1], probability = TRUE, xlab = expression("Weight"[1]*"(pounds)"), col = "grey", #ylim = c(0, max(fun)+0.01),
+hist(primary_dat$WT_lasso, probability = TRUE, xlab = expression("Weight (pounds)"), col = "grey", ylim = c(0, max(fun)+0.006),
      axes = FALSE, 
-     main =  expression("Distribution of Weight of Child 1"))
+     main =  expression("Distribution of Weight"))
 # Axis
 axis(1)
 # Density
-lines(density(primary_dat$WT_lasso[primary_dat$BO == 1]), col = "red", lwd = 2)
+lines(density(primary_dat$WT_lasso), col = "red", lwd = 2)
 # Add boxplot
 par(new =TRUE)
-boxplot(primary_dat$WT_lasso[primary_dat$BO == 1], horizontal = TRUE, 
+boxplot(primary_dat$WT_lasso, horizontal = TRUE, 
         axes = FALSE, 
         #ylim = c(-20,65),
         boxlwd = 1, outwex = 0.5, boxwex = 0.2,
         lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
 )
-stripchart(primary_dat$WT_lasso[primary_dat$BO == 1],              # Data
-           #method = "jitter", # Random noise
-           pch = 18,          # Pch symbols
-           col = 4,           # Color of the symbol
-           # vertical = TRUE,   # Vertical mode
-           add = TRUE) 
-
-####################################
-### for Height of child 2 in inches
-####################################
-# Normal curve
-fun <- dnorm(primary_dat$HT_lasso[primary_dat$BO == 2], mean = mean(primary_dat$HT_lasso[primary_dat$BO == 2]), sd = sd(primary_dat$HT_lasso[primary_dat$BO == 2]))
-max(fun)
-
-par(mfrow = c(1, 1))
-# Histogram
-hist(primary_dat$HT_lasso[primary_dat$BO == 2], probability = TRUE, xlab = expression("Height"[2]*"(inches)"), col = "grey", #ylim = c(0, max(fun)+0.01),
-     axes = FALSE, 
-     main =  expression("Distribution of Height of Child 2"))
-# Axis
-axis(1)
-# Density
-lines(density(primary_dat$HT_lasso[primary_dat$BO == 2]), col = "red", lwd = 2)
-# Add boxplot
-par(new =TRUE)
-boxplot(primary_dat$HT_lasso[primary_dat$BO == 2], horizontal = TRUE, 
-        axes = FALSE, 
-        #ylim = c(-20,65),
-        boxlwd = 1, outwex = 0.5, boxwex = 0.2,
-        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
-)
-stripchart(primary_dat$HT_lasso[primary_dat$BO == 2],              # Data
-           #method = "jitter", # Random noise
-           pch = 18,          # Pch symbols
-           col = 4,           # Color of the symbol
-           # vertical = TRUE,   # Vertical mode
-           add = TRUE) 
-
-####################################
-### for Weight of child 1 in pounds
-####################################
-# Normal curve
-fun <- dnorm(primary_dat$WT_lasso[primary_dat$BO == 2], mean = mean(primary_dat$WT_lasso[primary_dat$BO == 2]), sd = sd(primary_dat$WT_lasso[primary_dat$BO == 2]))
-max(fun)
-
-par(mfrow = c(1, 1))
-# Histogram
-hist(primary_dat$WT_lasso[primary_dat$BO == 2], probability = TRUE, xlab = expression("Weight"[2]*"(pounds)"), col = "grey", ylim = c(0, max(fun)+0.0057),
-     axes = FALSE, 
-     main =  expression("Distribution of Weight of Child 2"))
-# Axis
-axis(1)
-# Density
-lines(density(primary_dat$WT_lasso[primary_dat$BO == 2]), col = "red", lwd = 2)
-# Add boxplot
-par(new =TRUE)
-boxplot(primary_dat$WT_lasso[primary_dat$BO == 2], horizontal = TRUE, 
-        axes = FALSE, 
-        #ylim = c(-20,65),
-        boxlwd = 1, outwex = 0.5, boxwex = 0.2,
-        lwd = 2, col = rgb(0, 1, 1, alpha = 0.15)
-)
-stripchart(primary_dat$WT_lasso[primary_dat$BO == 2],              # Data
+stripchart(primary_dat$WT_lasso,              # Data
            #method = "jitter", # Random noise
            pch = 18,          # Pch symbols
            col = 4,           # Color of the symbol
@@ -529,11 +489,14 @@ stripchart(primary_dat$WT_lasso[primary_dat$BO == 2],              # Data
            add = TRUE) 
 
 ```
-##### 3.3 Univariate analysis
-Considering the proportion of the missingness, we will exclude the baseline measurements, birth weight and birth height, from the primary analysis. 
+
+#### 3.3 Univariate analysis
+
+We constructed a univariate regression model to screen candidate predictors for our primary outcomes. Variables with a significance level of p < 0.10 were included in a multivariable GLMM model. Generalized linear mixed models allow heterogeneity across sampled pairs. Therefore, we applied GLMMs in the study to evaluate the association between outcomes and selected predictors. Finally, we used AIC to evaluate and determine the best working predictor structure for the final model. 
+
 ```{r}
 ## get the variable list for testing
-names(primary_dat)
+#names(primary_dat)
 var.list <- colnames(primary_dat)
 var.list <- var.list[-c(1,2,7:11,13:16)]
 
@@ -549,16 +512,8 @@ mod.RE = lme(mod,method="ML",na.action=na.omit,
 ## without  a random effect 
 mod = lm(mod,primary_dat)
 
-## AIC test 
+## AIC test for model selection
 bbmle::AICtab(mod.RE,mod) # lower AIC it is considered significantly better than that model.
-
-summary(mod.RE)$tTable 
-
-round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
-  Outcome = noquote("HT_lasso"),
-  Varible = noquote(var.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
-  dplyr::rename("Estimate" = "Value") |> slice(-1)
-
 
 
 ######### 
@@ -573,7 +528,7 @@ names(result_tab)[names(result_tab)=='V1']='Outcome'
 names(result_tab)[names(result_tab)=='V2']='Varible'
 names(result_tab)[names(result_tab)=='V3']='Estimate'
 names(result_tab)[names(result_tab)=='V4']='p-Value'
-result_tab 
+#result_tab 
 
 
 # for loop for outcome HT_lasso
@@ -617,14 +572,16 @@ for(i in 1:length(var.list)) {
 }
 
 # check the final result table
-result_tab
-View(result_tab)
+(result_tab)
 
 ```
 
-##### 3.4 Multivariate analysis
+The clear association of Zygosity groups and Age by month on both height and weight, appears in above univariate result table. Sex with a p-value 0.028 is also significant for height.
 
-Model for Height
+#### 3.4 Multivariate analysis
+
+##### Model for Height
+
 ```{r}
 mod.height1 = lme(HT_lasso ~ Zyg + AgeMon  ,method="ML",na.action=na.omit, 
                random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
@@ -635,12 +592,13 @@ mod.height2 = lme(HT_lasso ~ Zyg + Sex + AgeMon  ,method="ML",na.action=na.omit,
 round(summary(mod.height1)$tTable,3) 
 round(summary(mod.height2)$tTable,3) 
 
-## AIC test 
+## AIC test for model selection
 bbmle::AICtab(mod.height1,mod.height2) 
 
 ```
 
-Model for Weight
+##### Model for Weight
+
 ```{r}
 mod.weight1 = lme(WT_lasso ~ Zyg + AgeMon ,method="ML",na.action=na.omit, 
                random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = primary_dat)
@@ -650,26 +608,34 @@ mod.weight2 = lme(WT_lasso ~ Zyg + Sex + AgeMon ,method="ML",na.action=na.omit,
 round(summary(mod.weight1)$tTable,3) 
 round(summary(mod.weight2)$tTable,3) 
 
-## AIC test 
+## AIC test for model selection
 bbmle::AICtab(mod.weight1,mod.weight2) 
 
 ```
 
-#### 4. Subgroup Analysis
-##### 4.1 Data Preparation and Exploration 
+#### 3.5 Primary Analysis Results
+
+Lasso-imputed height in inches in this primary dataset ranged from 36.00 to 74.25, with median 52.00 [IRQs 47.75, 56.50], while Lasso-imputed weight in pounds ranged from 28.00 to 250.00, with median 62.00 [IRQs 49.00, 79.88]. Age in month ranged from 47.17 to 666.07, with median 104.37 [IRQs 85.80, 124.00], indicating 959 children, 119 adolescences, and 20 adults. 532 males and 566 females are involved.
+
+The final GLMM models for variability in height included zygosity, sex, and age in month, while the final model for variability in weight included zygosity and age in month only, suggesting that associations of these factors with weight vary over development. 
+
+
+### 4. Subgroup Analysis
+
+The majority missingness of the birth height and weight present in virtual twins and full siblings, resulting in a significant imbalance in cell sizes of Zygosity groups 3, 4, and 5. Therefore, the subgroup analysis focused on the growth variation among biological twins only, Zygosity groups 1 (monozygotic) and 2 (dizygotic). We followed the same procedure as the primary analysis to construct the final models for the subgroup analysis, taking into account the baseline measurements at birth.
+
+#### 4.1 Data Preparation and Exploration
 
 ```{r}
 #View(Twin_subdat)
 ###### recall
 ## to generate a sub data set filtered by data quality of height and weight at birth
 #Twin_subdat <- TwinData |> filter(!(IDNO %in% Twin_missBirthInfo$IDNO)) |> group_by(IDNO) |> filter(n()==2)
-
 Twin_subdat |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
 Twin_subdat |> dplyr::select(Zyg,BO) |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
 
 ## to generate a sub data set including  MZ (monozygotic) & DZ (dizygotic) only
 subgrp_data <- Twin_subdat |> filter(Zyg %in% c(1,2)) 
-
 
 ## to create new variables for further analysis and missing imputation
 #. **BWOZ** Birth Weight in ounces Missing = 999.00
@@ -709,7 +675,7 @@ subgrp_data |> tbl_summary(by = BO) |> add_overall() |> add_n() |> bold_labels()
 
 ```
 
-##### 4.2 Subgroup Data Visualization 
+#### 4.2 Subgroup Data Visualization
 
 ```{r}
 # proportions in Zygosity groups by Gender 
@@ -734,7 +700,7 @@ HT_Sex <- subgrp_data %>%
              fill = Sex)) +
   ggtitle("Plot of Distribution of Height \nby Sex") +
   xlab("Height (inches)") +
-  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  scale_fill_discrete(name = "Sex", labels = c("Male","Female")) +
   ggridges::geom_density_ridges(bandwidth = 4) + theme_ipsum() 
 
 
@@ -744,7 +710,7 @@ WT_Sex <- subgrp_data %>%
              fill = Sex)) +
   ggtitle("Plot of Distribution of Weight \nby Sex") +
   xlab("Weight (pounds)") +
-  scale_fill_discrete(name = "Sex", labels = c("Female", "Male")) +
+  scale_fill_discrete(name = "Sex", labels = c("Male","Female")) +
   ggridges::geom_density_ridges(bandwidth = 4) + theme_ipsum() 
 
 
@@ -778,7 +744,7 @@ plot_grid(HT_Sex,WT_Sex,
 
 ```
 
-In light of above data visualizations, we can conclude that the distributions of age across both sex and birth order groups are fairly similar and likely not different between both sex and birth order groups. We could also statistically explore this using a suitable Wilcoxon test before performing the main group comparison. 
+In light of above data visualizations, we can conclude that the distributions of weight and height across both sex and birth order groups are fairly similar and likely not different between both sex and birth order groups. We could also statistically explore this using a suitable Wilcoxon test before performing the main group comparison.
 
 ```{r}
 # Mann-Withney U test
@@ -806,12 +772,12 @@ subgrp_data %>%
   glimpse()
 ```
 
-According to the P-values of each test, the test is not significant for neither of groups, Thus, the groups are considered to be not different. 
+According to the P-values of each test, the test is not significant for neither of groups, Thus, the groups are considered to be not different.
 
-##### 4.3 Pearson correlation matrix:
+#### 4.3 Pearson correlation matrix:
 
 ```{r}
-names(subgrp_data)
+#names(subgrp_data)
 
 for_corr <- subgrp_data |> dplyr::select(BO,Zyg,Sex,Race,AgeMon,
                                          BWOZ,BirLenth_lasso) |>
@@ -828,16 +794,16 @@ corrplot2(
 )
 ```
 
-##### 4.4 Univariate Analysis
+#### 4.4 Univariate Analysis
 
 ```{r}
 ## get the variable list for testing
-names(subgrp_data)
+#names(subgrp_data)
 variable.list <- colnames(subgrp_data)
-variable.list
+#variable.list
 variable.list <- variable.list[-c(1,8:11,13:16)]
 
-variable.list
+#variable.list
 ## test the model setting, with or without a random effect 
 i=6
 mod <- as.formula(sprintf("HT_na ~ %s ", variable.list[i]))
@@ -850,16 +816,8 @@ mod.RE = lme(mod,method="ML",na.action=na.omit,
 ## without  a random effect 
 mod = lm(mod,subgrp_data)
 
-## AIC test 
+## AIC test for model selection
 bbmle::AICtab(mod.RE,mod) # lower AIC it is considered significantly better than that model.
-
-summary(mod.RE)$tTable 
-
-round(summary(mod.RE)$tTable,3) |> as.data.frame() |> add_column(
-  Outcome = noquote("HT"),
-  Varible = noquote(variable.list[i]), .before = "Value") |> dplyr::select(-c(`Std.Error`,`DF`,`t-value`)) |>
-  dplyr::rename("Estimate" = "Value") |> slice(-1)
-
 
 
 ######### 
@@ -874,7 +832,7 @@ names(subgrpresult_tab)[names(subgrpresult_tab)=='V1']='Outcome'
 names(subgrpresult_tab)[names(subgrpresult_tab)=='V2']='Varible'
 names(subgrpresult_tab)[names(subgrpresult_tab)=='V3']='Estimate'
 names(subgrpresult_tab)[names(subgrpresult_tab)=='V4']='p-Value'
-subgrpresult_tab 
+#subgrpresult_tab 
 
 
 # for loop for outcome HT_lasso
@@ -919,14 +877,14 @@ for(i in 1:length(variable.list)) {
 
 # check the final result table
 
-View(subgrpresult_tab)
+(subgrpresult_tab)
 
 ```
 
+#### 4.5 Multivariate analysis
 
-##### 3.4 Multivariate analysis
+##### Model for Height
 
-Model for Height
 ```{r}
 
 subgrpmod.height1 = lme(HT_na~ Sex + AgeMon + BWOZ  ,method="ML",na.action=na.omit, 
@@ -943,13 +901,14 @@ round(summary(subgrpmod.height1)$tTable,3)
 round(summary(subgrpmod.height2)$tTable,3) 
 round(summary(subgrpmod.height3)$tTable,3) 
 
-## AIC test 
+## AIC test for model selection
 bbmle::AICtab(subgrpmod.height1,subgrpmod.height2) 
 bbmle::AICtab(subgrpmod.height1,subgrpmod.height3) 
 bbmle::AICtab(subgrpmod.height2,subgrpmod.height3) 
 ```
 
-Model for Weight
+##### Model for Weight
+
 ```{r}
 subgrpmod.weight1 = lme(HT_na~ AgeMon + BWOZ  ,method="ML",na.action=na.omit, 
                random = ~1 |IDNO,  control = lmeControl(opt = 'optim'),data = subgrp_data)
@@ -965,17 +924,41 @@ round(summary(subgrpmod.weight1)$tTable,3)
 round(summary(subgrpmod.weight2)$tTable,3) 
 round(summary(subgrpmod.weight3)$tTable,3) 
 
-## AIC test 
+## AIC test for model selection
 bbmle::AICtab(subgrpmod.weight1,subgrpmod.weight2) 
 bbmle::AICtab(subgrpmod.weight1,subgrpmod.weight3) 
 bbmle::AICtab(subgrpmod.weight2,subgrpmod.weight3) 
 
 ```
 
+
+#### 4.6 Subgroup Analysis Results
+
+326 pairs of biological twins, 163 pairs of monozygotic and 163 pairs of dizygotic, were sampled from the original study cohort. 310 males and 342 females are involved. Height in inches in this subgroup dataset ranged from 42.00 to 70.75, with median 52.50 [IRQs 49.75, 56.50], while weight in pounds ranged from 33.00 to 171.00, with median 64.00 [IRQs 53.00, 80.00]. Age in month ranged from 61.37 to 278.97, with median 107.52 [IRQs 96.50, 122.07], indicating 570 children, 80 adolescences, and 2 adults. 
+
+To mitigate multicollinearity among primary baseline predictors, we explored the interaction between birth height and weight. This approach resulted in our optimal model structure for height and weight. Besides age in month and interaction term of birth weight and height, sex was consistently included the final model of height.
+
+
 ## Results {#sec-results}
 
-Describe your results and include relevant tables, plots, and code/comments used to obtain them. You may refer to the @sec-methods as needed. End with a brief conclusion of your findings related to the question you set out to address. You can include references if you'd like, but this is not required.
+According to our primary and subgroup analyses above, the final models for influencing height and weight in all zygosity groups suggested zygosity, sex, and age in month as major factors, while the final model for variability in height and weight for biological twins included sex, age in month, and the interaction term of baseline measurements at birth, suggesting that associations of genetic factors with height and weight vary throughout growth, especially at an early age. Age in month was the only predictor retained in all final models, with p < 0.001. By comparing the similarity of monozygotic, dizygotic, and virtual twins, our results suggest that variability in both height and weight among twins and adoptees is strongly influenced by genetic factors in both sexes as early childhood, and increasingly through late adolescence. That is consistent with results from other twin studies.
 
-## Conclusion
 
-This the conclusion. The @sec-results can be invoked if you'd like.
+## Conclusion and limitation
+
+In short, twin and adoption studies are useful to disentangle the relative importance of environmental and genetic influences on individual growth and traits and will continue to do so. These study designs are able to separate the effects of genetics from the social environment. Our preliminary study of twin and adoption have provided valuable insights into the heritability of body growth. It give clues to the importance of biological environmental factors, in advancing our understanding of the complex interplay between nature and nurture in shaping individual differences. There is no doubt that genetic factors certainly build the inner foundation, but where and how a child is raised also play a crucial role of their early growth and development. Environmental factors, such as nutrition and physical activities, are related to health and performance and affect the development of weight for a longer period across a broad spectrum of life stages. The majority of our participants were white. The lack of ethnic diversity in our research participation is part of our limitations. Given the importance of healthy lifestyle choices, a crucial question arises about which factor is more likely to influence the direction of variations. Therefore, it is essential to include specific measurements of common environmental factors to thoroughly assess this multi-dimensional issue.
+
+## References 
+
+1. Prescott CA, Kendler KS. Twin Study Design. Alcohol Health Res World. 1995;19(3):200-205. PMID: 31798103; PMCID: PMC6875762.
+
+2. Maes HH, Neale MC, Eaves LJ. Genetic and environmental factors in relative body weight and human adiposity. Behav Genet. 1997 Jul;27(4):325-51. doi: 10.1023/a:1025635913927. PMID: 9519560.
+
+3. Boomsma, D., Busjahn, A. & Peltonen, L. Classical twin studies and beyond. Nat. Rev. Genet. 3, 872–882 (2002).
+
+4. Vrieze SI, McGue M, Miller MB, Legrand LN, Schork NJ, Iacono WG. An assessment of the individual and collective effects of variants on height using twins and a developmentally informative study design. PLoS Genet. 2011 Dec;7(12):e1002413. doi: 10.1371/journal.pgen.1002413. Epub 2011 Dec 8. PMID: 22174699; PMCID: PMC3234218.
+
+5. Brandkvist M, BjÃ¸rngaard J H, Ã˜degÃ¥rd R A, Ã…svold B O, Sund E R, Vie G et al. Quantifying the impact of genes on body mass index during the obesity epidemic: longitudinal findings from the HUNT Study BMJ 2019; 366 :l4067 doi:10.1136/bmj.l4067
+
+
+
